@@ -1,0 +1,55 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model ads {
+  id          String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  title       String      @db.VarChar(255)
+  description String
+  price       Decimal     @db.Decimal(10, 2)
+  created_at  DateTime?   @default(now()) @db.Timestamptz(6)
+  user_id     String      @db.Uuid
+  category_id Int?
+  city        String      @db.VarChar(255)
+  currency    String?     @default("RON") @db.VarChar(3)
+  images      Json?       @default("[]")
+  categories  categories? @relation(fields: [category_id], references: [id], onUpdate: NoAction, map: "fk_category")
+  users       users       @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_user")
+  favorites   favorites[]
+}
+
+model categories {
+  id   Int    @id @default(autoincrement())
+  name String @unique @db.VarChar(100)
+  ads  ads[]
+}
+
+model favorites {
+  user_id    String    @db.Uuid
+  ad_id      String    @db.Uuid
+  created_at DateTime? @default(now()) @db.Timestamptz(6)
+  ads        ads       @relation(fields: [ad_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_ad")
+  users      users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_user")
+
+  @@id([user_id, ad_id])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model users {
+  id            String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  first_name    String      @db.VarChar(50)
+  last_name     String      @db.VarChar(50)
+  email         String      @unique @db.VarChar(100)
+  phone_number  String      @db.VarChar(20)
+  password_hash String      @db.VarChar(255)
+  city          String?     @db.VarChar(100)
+  created_at    DateTime?   @default(now()) @db.Timestamptz(6)
+  ads           ads[]
+  favorites     favorites[]
+}
