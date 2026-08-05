@@ -2,8 +2,11 @@ import prisma from "../prisma";
 import jwt from "jsonwebtoken";
 import bcryptjs from "bcryptjs";
 import { RegisterUserInput } from "../types";
+import { EmailService } from "./email.service";
 
 export class AuthService {
+  private emailService = new EmailService();
+
   async registerUser(userData: RegisterUserInput) {
     const normalizedEmail = userData.email.toLowerCase();
 
@@ -82,5 +85,33 @@ export class AuthService {
         created_at: user.created_at,
       },
     };
+  }
+
+  async forgotPassword(email: string) {
+    const normalizedEmail = email.toLowerCase();
+
+    const user = await prisma.users.findFirst({
+      where: { email: normalizedEmail },
+    });
+
+    if (!user) {
+      return null;
+    }
+
+    const resetSecret = process.env.JWT_RESET_SECRET;
+    if (!resetSecret) {
+      throw new Error("JWT_RESET_SECRET nu este definit în fișierul .env");
+    }
+
+    const resetToken = jwt.sign({ id: user.id }, resetSecret, {
+      expiresIn: "15m",
+    });
+
+    this.emailService.sendPasswordResetEmail(
+      { first_name: user.first_name, email: user.email },
+      resetToken,
+    );
+
+    return resetToken;
   }
 }

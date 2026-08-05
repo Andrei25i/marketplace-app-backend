@@ -7,7 +7,7 @@ const authController = new AuthController();
 
 router.post("/register", authLimiter, authController.register);
 router.post("/login", authLimiter, authController.login);
-// forgot password
+router.post("/forgot-password", authLimiter, authController.forgotPassword);
 // reset password
 
 export default router;

@@ -68,4 +68,26 @@ export class AuthController {
       return res.status(500).json({ error: "Eroare internă a serverului." });
     }
   };
+
+  forgotPassword = async (req: Request, res: Response) => {
+    const { email } = req.body;
+
+    if (!email) {
+      return res
+        .status(400)
+        .json({ error: "Adresa de email este obligatorie." });
+    }
+
+    try {
+      await this.authService.forgotPassword(email);
+
+      return res.status(200).json({
+        message:
+          "Un link de resetare a parolei a fost trimis la adresa de email.",
+      });
+    } catch (error) {
+      console.error("Eroare la forgot-password:", error);
+      return res.status(500).json({ error: "Eroare internă a serverului." });
+    }
+  };
 }
