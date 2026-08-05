@@ -114,4 +114,32 @@ export class AuthService {
 
     return resetToken;
   }
+
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    const resetSecret = process.env.JWT_RESET_SECRET;
+    if (!resetSecret) {
+      throw new Error("JWT_RESET_SECRET nu este definit");
+    }
+
+    try {
+      const decoded = jwt.verify(token, resetSecret) as { id: string };
+
+      const salt = await bcryptjs.genSalt(10);
+      const passwordHash = await bcryptjs.hash(newPassword, salt);
+
+      const updatedResult = await prisma.users.updateMany({
+        where: { id: decoded.id },
+        data: { password_hash: passwordHash },
+      });
+
+      if (updatedResult.count === 0) {
+        throw new Error("USER_NOT_FOUND");
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message === "USER_NOT_FOUND") {
+        throw error;
+      }
+      throw new Error("INVALID_TOKEN");
+    }
+  }
 }

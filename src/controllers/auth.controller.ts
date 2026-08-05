@@ -90,4 +90,29 @@ export class AuthController {
       return res.status(500).json({ error: "Eroare internă a serverului." });
     }
   };
+
+  resetPassword = async (req: Request, res: Response) => {
+    const { token, newPassword } = req.body;
+
+    if (!token || !newPassword) {
+      return res
+        .status(400)
+        .json({ error: "Token-ul și noua parolă sunt necesare." });
+    }
+
+    try {
+      await this.authService.resetPassword(token, newPassword);
+
+      return res
+        .status(200)
+        .json({ message: "Parola a fost resetată cu succes." });
+    } catch (error) {
+      if (error instanceof Error && error.message === "USER_NOT_FOUND") {
+        return res.status(404).json({ error: "Utilizatorul nu a fost găsit." });
+      }
+      return res
+        .status(401)
+        .json({ error: "Link-ul de resetare este invalid sau a expirat." });
+    }
+  };
 }
