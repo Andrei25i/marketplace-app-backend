@@ -74,7 +74,6 @@ export class EmailService {
         subject: "Resetarea parolei pentru contul tău reVinde",
         html: html,
       });
-      console.log(`[EmailService] Link de resetare trimis către ${user.email}`);
     } catch (error) {
       console.error(
         `[EmailService] Eroare la trimiterea emailului către ${user.email}:`,
