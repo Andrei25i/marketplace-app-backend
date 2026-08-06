@@ -6,8 +6,3 @@ export type RegisterUserInput = {
   password: string;
   city: string;
 };
-
-export interface JwtPayload {
-  id: number;
-  email: string;
-}

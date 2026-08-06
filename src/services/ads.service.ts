@@ -1,6 +1,7 @@
 import prisma from "../prisma";
 import { Prisma } from "@prisma/client";
-import { GetAdsFilters } from "../types/ads.types";
+import { CreateAdDTO, GetAdsFilters } from "../types/ads.types";
+import cloudinary from "../config/cloudinary";
 
 export class AdsService {
   async getAllAds(filters: GetAdsFilters) {
@@ -103,5 +104,61 @@ export class AdsService {
       user: users,
       category: categories,
     };
+  }
+
+  async createAd(data: CreateAdDTO) {
+    const newAd = await prisma.ads.create({
+      data: {
+        title: data.title,
+        description: data.description,
+        price: data.price,
+        currency: data.currency || "RON",
+        images: data.images,
+        city: data.city,
+        category_id: data.category_id,
+        user_id: data.user_id,
+      },
+    });
+
+    return newAd;
+  }
+
+  async deleteAd(adId: string, loggedUserId: string): Promise<void> {
+    const ad = await prisma.ads.findUnique({
+      where: { id: adId },
+      select: { user_id: true, images: true },
+    });
+
+    if (!ad) {
+      throw new Error("NOT_FOUND");
+    }
+
+    if (ad.user_id !== loggedUserId) {
+      throw new Error("FORBIDDEN");
+    }
+
+    const images = ad.images as Array<{ public_id?: string }> | null;
+
+    if (images && Array.isArray(images) && images.length > 0) {
+      try {
+        const deletePromises = images.map((img) => {
+          if (img.public_id) {
+            return cloudinary.uploader.destroy(img.public_id);
+          }
+          return Promise.resolve();
+        });
+
+        await Promise.all(deletePromises);
+      } catch (cloudinaryErr) {
+        console.error(
+          "Eroare la ștergerea fișierelor din Cloudinary:",
+          cloudinaryErr,
+        );
+      }
+    }
+
+    await prisma.ads.delete({
+      where: { id: adId },
+    });
   }
 }
