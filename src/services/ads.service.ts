@@ -1,6 +1,6 @@
 import prisma from "../prisma";
 import { Prisma } from "@prisma/client";
-import { CreateAdDTO, GetAdsFilters } from "../types/ads.types";
+import { CreateAdDTO, GetAdsFilters, UpdateAdDTO } from "../types/ads.types";
 import cloudinary from "../config/cloudinary";
 
 export class AdsService {
@@ -160,5 +160,56 @@ export class AdsService {
     await prisma.ads.delete({
       where: { id: adId },
     });
+  }
+
+  async updateAd(adId: string, loggedUserId: string, data: UpdateAdDTO) {
+    const ad = await prisma.ads.findUnique({
+      where: { id: adId },
+      select: { user_id: true },
+    });
+
+    if (!ad) {
+      throw new Error("NOT_FOUND");
+    }
+
+    if (ad.user_id !== loggedUserId) {
+      throw new Error("FORBIDDEN");
+    }
+
+    const updatedAd = await prisma.ads.update({
+      where: { id: adId },
+      data: {
+        title: data.title,
+        description: data.description,
+        price: data.price,
+        currency: data.currency || "RON",
+        images: data.images as any,
+        category_id: Number(data.category_id),
+        city: data.city,
+      },
+    });
+
+    if (
+      data.deletedPublicIds &&
+      Array.isArray(data.deletedPublicIds) &&
+      data.deletedPublicIds.length > 0
+    ) {
+      const deletePromises = data.deletedPublicIds.map((public_id) =>
+        cloudinary.uploader.destroy(public_id),
+      );
+
+      Promise.allSettled(deletePromises).then((results) => {
+        results.forEach((res, index) => {
+          if (res.status === "rejected") {
+            console.error(
+              `Eroare la ștergerea imaginii ${data.deletedPublicIds![index]} din Cloudinary:`,
+              res.reason,
+            );
+          }
+        });
+      });
+    }
+
+    return updatedAd;
   }
 }

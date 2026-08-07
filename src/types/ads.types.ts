@@ -18,3 +18,19 @@ export type CreateAdDTO = {
   city: string;
   user_id: string;
 };
+
+export interface AdImage {
+  url: string;
+  public_id: string;
+}
+
+export interface UpdateAdDTO {
+  title: string;
+  description: string;
+  price: number;
+  currency?: string;
+  images: AdImage[];
+  category_id: number;
+  city: string;
+  deletedPublicIds?: string[];
+}
