@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { AdsService } from "../services/ads.service";
+import { UpdateAdDTO } from "../types/ads.types";
 
 export class AdsController {
   private adsService = new AdsService();
@@ -102,12 +103,12 @@ export class AdsController {
       return res
         .status(200)
         .json({ message: "Anunțul a fost șters cu succes." });
-    } catch (error: any) {
-      if (error.message === "NOT_FOUND") {
+    } catch (error) {
+      if (error instanceof Error && error.message === "NOT_FOUND") {
         return res.status(404).json({ error: "Anunțul nu a fost găsit." });
       }
 
-      if (error.message === "FORBIDDEN") {
+      if (error instanceof Error && error.message === "FORBIDDEN") {
         return res.status(403).json({
           error:
             "Acțiune interzisă. Nu aveți permisiunea să ștergeți acest anunț.",
@@ -115,6 +116,63 @@ export class AdsController {
       }
 
       console.error("Eroare la ștergerea anunțului:", error);
+      return res.status(500).json({ error: "Eroare internă a serverului." });
+    }
+  };
+
+  update = async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const loggedUserId = req.user?.id;
+
+    if (!id || typeof id !== "string") {
+      return res.status(400).json({ error: "ID-ul anunțului este invalid." });
+    }
+
+    if (!loggedUserId) {
+      return res.status(401).json({ error: "Neautorizat." });
+    }
+
+    const body: UpdateAdDTO = req.body;
+    if (
+      !body.title ||
+      !body.description ||
+      !body.price ||
+      !body.images ||
+      !Array.isArray(body.images) ||
+      body.images.length === 0 ||
+      !body.category_id ||
+      !body.city
+    ) {
+      return res.status(400).json({
+        error:
+          "Toate câmpurile sunt obligatorii și trebuie să existe cel puțin o imagine.",
+      });
+    }
+
+    const isValidImages = body.images.every((img) => img.url && img.public_id);
+    if (!isValidImages) {
+      return res
+        .status(400)
+        .json({ error: "Structura imaginilor este invalidă." });
+    }
+
+    try {
+      body.price = parseFloat(body.price.toString());
+      const updatedAd = await this.adsService.updateAd(id, loggedUserId, body);
+      return res.status(200).json(updatedAd);
+    } catch (error) {
+      if (error instanceof Error && error.message === "NOT_FOUND") {
+        return res.status(404).json({ error: "Anunțul nu a fost găsit." });
+      }
+
+      if (error instanceof Error && error.message === "FORBIDDEN") {
+        return res.status(403).json({
+          error:
+            "Acțiune interzisă. Nu aveți permisiunea să editați acest anunț.",
+        });
+      }
+
+      console.error("Eroare la actualizarea anunțului:", error);
       return res.status(500).json({ error: "Eroare internă a serverului." });
     }
   };
