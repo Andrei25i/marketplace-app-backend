@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import bcryptjs from "bcryptjs";
 import { RegisterUserInput } from "../types";
 import { EmailService } from "./email.service";
+import { capitalizeName } from "../utils/capitalizeName";
 
 export class AuthService {
   private emailService = new EmailService();
@@ -23,10 +24,13 @@ export class AuthService {
     const salt = await bcryptjs.genSalt(10);
     const passwordHash = await bcryptjs.hash(userData.password, salt);
 
+    const firstName = capitalizeName(userData.first_name);
+    const lastName = capitalizeName(userData.last_name);
+
     const newUser = await prisma.users.create({
       data: {
-        first_name: userData.first_name,
-        last_name: userData.last_name,
+        first_name: firstName,
+        last_name: lastName,
         email: normalizedEmail,
         phone_number: userData.phone_number,
         password_hash: passwordHash,

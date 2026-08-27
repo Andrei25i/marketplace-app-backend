@@ -24,6 +24,6 @@ export const authMiddleware = (
     req.user = decodedPayload;
     next();
   } catch (error) {
-    return res.status(403).json({ error: "Token invalid sau expirat." });
+    return res.status(401).json({ error: "Token invalid sau expirat." });
   }
 };
