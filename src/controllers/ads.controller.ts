@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { AdsService } from "../services/ads.service";
-import { UpdateAdDTO } from "../types/ads.types";
+import { UpdateAdDTO } from "../types/ads.type";
 
 export class AdsController {
   private adsService = new AdsService();
