@@ -1,6 +1,6 @@
 import { UserService } from "../services/user.service";
 import { Request, Response } from "express";
-import { UpdateProfileDTO } from "../types/user.types";
+import { UpdateProfileDTO } from "../types/user.type";
 
 export class UserController {
   private userService = new UserService();

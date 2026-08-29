@@ -1,7 +1,7 @@
 import prisma from "../prisma";
 import bcryptjs from "bcryptjs";
 import cloudinary from "../config/cloudinary";
-import { UpdateProfileDTO } from "../types/user.types";
+import { UpdateProfileDTO } from "../types/user.type";
 
 export class UserService {
   async getUserProfile(userId: string) {

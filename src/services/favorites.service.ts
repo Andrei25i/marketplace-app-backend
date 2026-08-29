@@ -1,5 +1,5 @@
 import { Prisma } from "@prisma/client";
-import { GetFavoritesFilters } from "../types/favorites.types";
+import { GetFavoritesFilters } from "../types/favorites.type";
 import prisma from "../prisma";
 
 export class FavoritesService {

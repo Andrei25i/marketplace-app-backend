@@ -1,6 +1,6 @@
 import prisma from "../prisma";
 import { Prisma } from "@prisma/client";
-import { CreateAdDTO, GetAdsFilters, UpdateAdDTO } from "../types/ads.types";
+import { CreateAdDTO, GetAdsFilters, UpdateAdDTO } from "../types/ads.type";
 import cloudinary from "../config/cloudinary";
 
 export class AdsService {
