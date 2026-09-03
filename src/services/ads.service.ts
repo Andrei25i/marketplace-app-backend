@@ -97,7 +97,7 @@ export class AdsService {
 
     if (!ad) return null;
 
-    const { users, categories, ...adData } = ad;
+    const { users, categories, category_id, user_id, ...adData } = ad;
 
     return {
       ...adData,
