@@ -15,22 +15,12 @@ export class UserService {
         phone_number: true,
         city: true,
         created_at: true,
-        _count: {
-          select: {
-            ads: true,
-          },
-        },
       },
     });
 
     if (!user) return null;
 
-    const { _count, ...userData } = user;
-
-    return {
-      ...userData,
-      ads_count: _count.ads,
-    };
+    return user;
   }
 
   async getPublicProfile(userId: string) {
@@ -41,22 +31,12 @@ export class UserService {
         first_name: true,
         last_name: true,
         created_at: true,
-        _count: {
-          select: {
-            ads: true,
-          },
-        },
       },
     });
 
     if (!user) return null;
 
-    const { _count, ...userData } = user;
-
-    return {
-      ...userData,
-      ads_count: _count.ads,
-    };
+    return user;
   }
 
   async deleteAccount(userId: string, passwordPlain: string) {
