@@ -25,6 +25,7 @@ export type CreateAdDTO = {
   title: string;
   description: string;
   price: number;
+  phone_number: string;
   currency?: string;
   images: AdImage[];
   category_id: number;
@@ -36,6 +37,7 @@ export interface UpdateAdDTO {
   title: string;
   description: string;
   price: number;
+  phone_number: string;
   currency?: string;
   images: AdImage[];
   category_id: number;
