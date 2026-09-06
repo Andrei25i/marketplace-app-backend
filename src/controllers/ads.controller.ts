@@ -48,13 +48,22 @@ export class AdsController {
       return res.status(401).json({ error: "Neautorizat." });
     }
 
-    const { title, description, price, currency, images, category_id, city } =
-      req.body;
+    const {
+      title,
+      description,
+      price,
+      phone_number,
+      currency,
+      images,
+      category_id,
+      city,
+    } = req.body;
 
     if (
       !title ||
       !description ||
       !price ||
+      !phone_number ||
       !images ||
       !Array.isArray(images) ||
       images.length === 0 ||
@@ -71,6 +80,7 @@ export class AdsController {
         title,
         description,
         price: parseFloat(price),
+        phone_number,
         currency,
         images,
         category_id: parseInt(category_id),
@@ -137,6 +147,7 @@ export class AdsController {
       !body.title ||
       !body.description ||
       !body.price ||
+      !body.phone_number ||
       !body.images ||
       !Array.isArray(body.images) ||
       body.images.length === 0 ||

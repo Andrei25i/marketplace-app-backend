@@ -83,7 +83,6 @@ export class AdsService {
             first_name: true,
             last_name: true,
             email: true,
-            phone_number: true,
           },
         },
         categories: {
@@ -112,6 +111,7 @@ export class AdsService {
         title: data.title,
         description: data.description,
         price: data.price,
+        phone_number: data.phone_number,
         currency: data.currency || "RON",
         images: data.images as unknown as Prisma.InputJsonValue,
         city: data.city,
@@ -182,6 +182,7 @@ export class AdsService {
         title: data.title,
         description: data.description,
         price: data.price,
+        phone_number: data.phone_number,
         currency: data.currency || "RON",
         images: data.images as unknown as Prisma.InputJsonValue,
         category_id: Number(data.category_id),
