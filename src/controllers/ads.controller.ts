@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { AdsService } from "../services/ads.service";
-import { UpdateAdDTO } from "../types/ads.type";
+import { AdImage, UpdateAdDTO } from "../types/ads.type";
+import { error } from "node:console";
 
 export class AdsController {
   private adsService = new AdsService();
@@ -59,12 +60,37 @@ export class AdsController {
       city,
     } = req.body;
 
+    const isValidImages =
+      Array.isArray(images) &&
+      images.length > 0 &&
+      images.every(
+        (image) =>
+          image &&
+          typeof image === "object" &&
+          typeof image.url === "string" &&
+          image.url.trim().length > 0 &&
+          typeof image.public_id === "string" &&
+          image.public_id.trim().length > 0,
+      );
+
+    if (!isValidImages) {
+      return res.status(400).json({
+        error: "Structura imaginilor este invalidă.",
+      });
+    }
+
+    if (images.length > 10) {
+      return res.status(400).json({
+        error: "Poți folosi maximum 10 imagini.",
+      });
+    }
+
     if (
       !title ||
       !description ||
       !price ||
       !phone_number ||
-      !images ||
+      !isValidImages ||
       !Array.isArray(images) ||
       images.length === 0 ||
       !category_id ||
@@ -185,6 +211,59 @@ export class AdsController {
 
       console.error("Eroare la actualizarea anunțului:", error);
       return res.status(500).json({ error: "Eroare internă a serverului." });
+    }
+  };
+
+  uploadImages = async (req: Request, res: Response) => {
+    const files = req.files as Express.Multer.File[];
+
+    if (!files || files.length === 0) {
+      return res.status(400).json({
+        error: "Nicio imagine validă trimisă.",
+      });
+    }
+
+    const results = await Promise.allSettled(
+      files.map((file) => this.adsService.uploadImageToCloudinary(file.buffer)),
+    );
+
+    const uploadedImages = results
+      .filter(
+        (result): result is PromiseFulfilledResult<AdImage> =>
+          result.status === "fulfilled",
+      )
+      .map((result) => result.value);
+
+    if (uploadedImages.length === 0) {
+      return res.status(500).json({
+        error: "Nicio imagine nu a putut fi încărcată.",
+      });
+    }
+
+    return res.status(201).json(uploadedImages);
+  };
+
+  deleteImages = async (req: Request, res: Response) => {
+    const { publicIds } = req.body;
+
+    if (
+      !Array.isArray(publicIds) ||
+      !publicIds.every((publicId) => typeof publicId === "string")
+    ) {
+      return res.status(400).json({
+        error: "Lista public_id este invalidă",
+      });
+    }
+
+    try {
+      await this.adsService.deleteImages(publicIds);
+
+      return res.status(204).send();
+    } catch (err) {
+      console.error("Eroare la ștergerea imaginilor:", err);
+      return res.status(500).json({
+        error: "Imaginile nu au putut fi șterse",
+      });
     }
   };
 }
