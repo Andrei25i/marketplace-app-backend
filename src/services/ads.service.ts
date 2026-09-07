@@ -1,6 +1,11 @@
 import prisma from "../prisma";
 import { Prisma } from "@prisma/client";
-import { CreateAdDTO, GetAdsFilters, UpdateAdDTO } from "../types/ads.type";
+import {
+  AdImage,
+  CreateAdDTO,
+  GetAdsFilters,
+  UpdateAdDTO,
+} from "../types/ads.type";
 import cloudinary from "../config/cloudinary";
 
 export class AdsService {
@@ -212,5 +217,21 @@ export class AdsService {
     }
 
     return updatedAd;
+  }
+
+  uploadImageToCloudinary(buffer: Buffer): Promise<AdImage> {
+    return new Promise((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream((err, result) => {
+        if (err || !result) return reject(err);
+        resolve({ url: result.secure_url, public_id: result.public_id });
+      });
+      stream.end(buffer);
+    });
+  }
+
+  async deleteImages(publicIds: string[]) {
+    await Promise.allSettled(
+      publicIds.map((publicId) => cloudinary.uploader.destroy(publicId)),
+    );
   }
 }
