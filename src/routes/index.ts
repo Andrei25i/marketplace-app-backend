@@ -7,7 +7,7 @@ import userRouter from "./user.routes";
 
 const router = Router();
 
-router.use("/ads", adsRouter);
+router.use("/listings", adsRouter);
 router.use("/user", userRouter);
 router.use("/categories", categoriesRouter);
 router.use("/auth", authRouter);
