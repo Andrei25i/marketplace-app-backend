@@ -10,12 +10,12 @@ router.get("/", adsController.getAll);
 router.get("/:id", adsController.getById);
 router.post("/", authMiddleware, adsController.create);
 router.post(
-  "/images",
+  "/photos",
   authMiddleware,
   upload.array("images", 10),
   adsController.uploadImages,
 );
-router.delete("/images", authMiddleware, adsController.deleteImages);
+router.delete("/photos", authMiddleware, adsController.deleteImages);
 router.delete("/:id", authMiddleware, adsController.delete);
 router.put("/:id", authMiddleware, adsController.update);
 
