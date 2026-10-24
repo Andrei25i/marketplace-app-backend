@@ -30,6 +30,8 @@ COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=build /app/dist ./dist
 
 USER node
+ARG GIT_SHA=dev
+ENV APP_VERSION=$GIT_SHA
 
 EXPOSE 8000
 
