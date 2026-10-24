@@ -24,7 +24,7 @@ ENV PORT=8000
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev --omit=peer --ignore-scripts \
+RUN npm ci --omit=dev --omit=optional --omit=peer --ignore-scripts \
     && npm cache clean --force \
     && rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 
