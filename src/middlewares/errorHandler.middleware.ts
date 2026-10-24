@@ -9,11 +9,9 @@ export const errorHandler = (
 ) => {
   if (err instanceof MulterError) {
     if (err.code === "LIMIT_FILE_SIZE") {
-      return res
-        .status(400)
-        .json({
-          error: "Imaginea depășește dimensiunea maximă permisă (5MB).",
-        });
+      return res.status(400).json({
+        error: "Imaginea depășește dimensiunea maximă permisă (5MB).",
+      });
     }
     if (
       err.code === "LIMIT_FILE_COUNT" ||
