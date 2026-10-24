@@ -61,3 +61,62 @@ jobs:
             org.opencontainers.image.revision=${{ env.SHA }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  migrate:
+    name: Run database migrations
+    needs: publish-image
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.SHA }}
+      - uses: ./.github/actions/setup
+      - name: Apply pending migrations
+        run: npx prisma migrate deploy
+
+  deploy:
+    name: Deploy to Render
+    needs: migrate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment:
+      name: production
+      url: ${{ vars.APP_URL }}
+    steps:
+      - name: Trigger Render deploy with the exact image
+        env:
+          DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          curl -fsS --get "$DEPLOY_HOOK" \
+            --data-urlencode "imgURL=${IMAGE}:sha-${SHA}" \
+            -o /dev/null
+          echo "Deploy triggered for ${IMAGE}:sha-${SHA}"
+
+  smoke-test:
+    name: Smoke test production
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      APP_URL: ${{ vars.APP_URL }}
+    steps:
+      - name: Wait for the new version to go live
+        run: |
+          for i in $(seq 1 60); do
+            VERSION=$(curl -fsS "$APP_URL/api/health" | jq -r '.version' || true)
+            echo "Attempt $i: live version = ${VERSION:-unreachable}"
+            if [ "$VERSION" = "$SHA" ]; then
+              echo "New version is live"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::Version $SHA did not go live within 10 minutes"
+          exit 1
+
+      - name: Check database connectivity
+        run: curl -fsS "$APP_URL/api/health/ready"
