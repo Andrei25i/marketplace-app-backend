@@ -4,7 +4,11 @@ import prisma from "../prisma";
 const router = Router();
 
 router.get("/", (_req, res) => {
-  res.status(200).json({ status: "ok", uptime: process.uptime() });
+  res.status(200).json({
+    status: "ok",
+    version: process.env.APP_VERSION ?? "dev",
+    uptime: process.uptime(),
+  });
 });
 
 router.get("/ready", async (_req, res) => {
