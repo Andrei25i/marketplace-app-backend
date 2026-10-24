@@ -23,7 +23,7 @@ export const authMiddleware = (
     const decodedPayload = jwt.verify(token, secret) as JwtPayload;
     req.user = decodedPayload;
     next();
-  } catch (error) {
+  } catch {
     return res.status(401).json({ error: "Token invalid sau expirat." });
   }
 };

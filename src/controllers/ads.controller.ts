@@ -1,7 +1,6 @@
 import { Request, Response } from "express";
 import { AdsService } from "../services/ads.service";
 import { AdImage, UpdateAdDTO } from "../types/ads.type";
-import { error } from "node:console";
 
 export class AdsController {
   private adsService = new AdsService();

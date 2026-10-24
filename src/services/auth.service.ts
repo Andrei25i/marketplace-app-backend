@@ -143,7 +143,7 @@ export class AuthService {
       if (error instanceof Error && error.message === "USER_NOT_FOUND") {
         throw error;
       }
-      throw new Error("INVALID_TOKEN");
+      throw new Error("INVALID_TOKEN", { cause: error });
     }
   }
 }

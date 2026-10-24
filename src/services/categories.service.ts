@@ -1,8 +1,9 @@
+import { Prisma } from "@prisma/client";
 import prisma from "../prisma";
 
 export class CategoriesService {
   async getAllCategories(sort?: string) {
-    let orderBy: any = { id: "asc" };
+    let orderBy: Prisma.categoriesOrderByWithRelationInput = { id: "asc" };
 
     if (sort === "name_asc") orderBy = { name: "asc" };
     else if (sort === "name_desc") orderBy = { name: "desc" };
