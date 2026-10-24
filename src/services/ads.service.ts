@@ -7,6 +7,7 @@ import {
   UpdateAdDTO,
 } from "../types/ads.type";
 import cloudinary from "../config/cloudinary";
+import { matchesText } from "../utils/normalizeText";
 
 export class AdsService {
   async getAllAds(filters: GetAdsFilters) {
@@ -15,16 +16,8 @@ export class AdsService {
 
     const whereClause: Prisma.adsWhereInput = {};
 
-    if (search) {
-      whereClause.title = { contains: search, mode: "insensitive" };
-    }
-
     if (category) {
       whereClause.category_id = parseInt(category);
-    }
-
-    if (city) {
-      whereClause.city = { contains: city, mode: "insensitive" };
     }
 
     if (userId && userId.trim() !== "") {
@@ -75,7 +68,9 @@ export class AdsService {
       },
     });
 
-    return ads;
+    return ads.filter(
+      (ad) => matchesText(ad.title, search) && matchesText(ad.city, city),
+    );
   }
 
   async getAdById(id: string) {

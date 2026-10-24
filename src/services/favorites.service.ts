@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { GetFavoritesFilters } from "../types/favorites.type";
 import prisma from "../prisma";
+import { matchesText } from "../utils/normalizeText";
 
 export class FavoritesService {
   async getFavoriteAds(userId: string, filters: GetFavoritesFilters) {
@@ -12,17 +13,9 @@ export class FavoritesService {
 
     const adsWhere: Prisma.adsWhereInput = {};
 
-    if (search && search.trim() !== "") {
-      adsWhere.title = { contains: search, mode: "insensitive" };
-    }
-
     if (category && category.trim() !== "") {
       const parsedCat = parseInt(category);
       if (!isNaN(parsedCat)) adsWhere.category_id = parsedCat;
-    }
-
-    if (city && city.trim() !== "") {
-      adsWhere.city = { contains: city, mode: "insensitive" };
     }
 
     if (
@@ -86,15 +79,20 @@ export class FavoritesService {
       },
     });
 
-    return favorites.map((fav) => {
-      const { categories, ...adData } = fav.ads;
+    return favorites
+      .filter(
+        (fav) =>
+          matchesText(fav.ads.title, search) && matchesText(fav.ads.city, city),
+      )
+      .map((fav) => {
+        const { categories, ...adData } = fav.ads;
 
-      return {
-        ...adData,
-        category: categories,
-        favorited_at: fav.created_at,
-      };
-    });
+        return {
+          ...adData,
+          category: categories,
+          favorited_at: fav.created_at,
+        };
+      });
   }
 
   async addFavorite(adId: string, userId: string) {
