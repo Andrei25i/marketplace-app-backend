@@ -1,4 +1,5 @@
 import { Router } from "express";
+import healthRouter from "./health.routes";
 import categoriesRouter from "./categories.routes";
 import authRouter from "./auth.routes";
 import adsRouter from "./ads.routes";
@@ -6,6 +7,8 @@ import favoritesRouter from "./favorites.routes";
 import userRouter from "./user.routes";
 
 const router = Router();
+
+router.use("/health", healthRouter);
 
 router.use("/listings", adsRouter);
 router.use("/user", userRouter);

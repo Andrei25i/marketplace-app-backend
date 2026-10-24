@@ -1,10 +1,9 @@
+import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
 import apiRoutes from "./routes";
 import { errorHandler } from "./middlewares/errorHandler.middleware";
-
-dotenv.config();
+import prisma from "./prisma";
 
 const app = express();
 const PORT = Number(process.env.PORT) || 8000;
@@ -15,6 +14,20 @@ app.use(express.json());
 app.use("/api", apiRoutes);
 app.use(errorHandler);
 
-app.listen(PORT, "0.0.0.0", () => {
+const server = app.listen(PORT, "0.0.0.0", () => {
   console.log(`Serverul ruleaza pe http://localhost:${PORT}`);
 });
+
+const shutdown = (signal: string) => {
+  console.log(`${signal} primit, se opreste serverul...`);
+
+  server.close(async () => {
+    await prisma.$disconnect();
+    process.exit(0);
+  });
+
+  setTimeout(() => process.exit(1), 10_000).unref();
+};
+
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
