@@ -32,7 +32,7 @@
     "express-rate-limit": "^8.6.1",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.3.0",
-    "nodemailer": "^9.0.4"
+    "nodemailer": "^10.2.1"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -42,7 +42,6 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/multer": "^2.2.0",
     "@types/node": "^26.1.2",
-    "@types/nodemailer": "^8.0.1",
     "eslint": "^10.13.0",
     "eslint-config-prettier": "^10.1.8",
     "globals": "^17.13.0",
