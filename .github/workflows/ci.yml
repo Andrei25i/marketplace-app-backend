@@ -114,7 +114,13 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Start container
-        run: docker run -d --name api -p 8000:8000 marketplace-backend:ci
+        run: >-
+          docker run -d --name api -p 8000:8000
+          -e JWT_SECRET=ci-only-secret
+          -e JWT_RESET_SECRET=ci-only-secret
+          -e REFRESH_TOKEN_SECRET=ci-only-secret
+          -e FRONTEND_URL=http://localhost:3000
+          marketplace-backend:ci
 
       - name: Smoke test /api/health
         run: |

@@ -4,6 +4,11 @@ import bcryptjs from "bcryptjs";
 import { RegisterUserInput } from "../types";
 import { EmailService } from "./email.service";
 import { capitalizeName } from "../utils/capitalizeName";
+import { authConfig } from "../config/auth.config";
+import { privateUserSelect } from "./user.service";
+
+const hashPassword = async (plain: string) =>
+  bcryptjs.hash(plain, await bcryptjs.genSalt(10));
 
 export class AuthService {
   private emailService = new EmailService();
@@ -12,103 +17,91 @@ export class AuthService {
     const normalizedEmail = userData.email.toLowerCase();
 
     const existingUser = await prisma.users.findFirst({
-      where: {
-        email: normalizedEmail,
-      },
+      where: { email: normalizedEmail },
     });
 
     if (existingUser) {
       throw new Error("EMAIL_EXISTS");
     }
 
-    const salt = await bcryptjs.genSalt(10);
-    const passwordHash = await bcryptjs.hash(userData.password, salt);
-
-    const firstName = capitalizeName(userData.first_name);
-    const lastName = capitalizeName(userData.last_name);
-
-    const newUser = await prisma.users.create({
+    return prisma.users.create({
       data: {
-        first_name: firstName,
-        last_name: lastName,
+        first_name: capitalizeName(userData.first_name),
+        last_name: capitalizeName(userData.last_name),
         email: normalizedEmail,
         phone_number: userData.phone_number,
-        password_hash: passwordHash,
+        password_hash: await hashPassword(userData.password),
         city: userData.city,
       },
-      select: {
-        id: true,
-        email: true,
-        first_name: true,
-        last_name: true,
-        created_at: true,
-      },
+      select: privateUserSelect,
     });
-
-    return newUser;
   }
 
   async loginUser(email: string, passwordString: string) {
-    const normalizedEmail = email.toLowerCase();
-
     const user = await prisma.users.findFirst({
-      where: { email: normalizedEmail },
+      where: { email: email.toLowerCase() },
+      select: { ...privateUserSelect, password_hash: true },
     });
 
     if (!user) {
       throw new Error("INVALID_CREDENTIALS");
     }
 
-    const isMatch = await bcryptjs.compare(passwordString, user.password_hash);
+    const { password_hash, ...profile } = user;
+    const isMatch = await bcryptjs.compare(passwordString, password_hash);
 
     if (!isMatch) {
       throw new Error("INVALID_CREDENTIALS");
     }
 
-    const secret = process.env.JWT_SECRET;
-    if (!secret) {
-      throw new Error("JWT_SECRET nu este definit în fișierul .env");
+    return profile;
+  }
+
+  async changePassword(
+    userId: string,
+    currentSessionId: string,
+    currentPassword: string,
+    newPassword: string,
+  ) {
+    const user = await prisma.users.findUnique({
+      where: { id: userId },
+      select: { password_hash: true },
+    });
+
+    if (!user) {
+      throw new Error("USER_NOT_FOUND");
     }
 
-    const payload = {
-      id: user.id,
-      email: user.email,
-    };
+    const isMatch = await bcryptjs.compare(currentPassword, user.password_hash);
+    if (!isMatch) {
+      throw new Error("INVALID_PASSWORD");
+    }
 
-    const token = jwt.sign(payload, secret, { expiresIn: "24h" });
+    const passwordHash = await hashPassword(newPassword);
 
-    return {
-      token,
-      user: {
-        id: user.id,
-        first_name: user.first_name,
-        last_name: user.last_name,
-        email: user.email,
-        phone_number: user.phone_number,
-        city: user.city,
-        created_at: user.created_at,
-      },
-    };
+    await prisma.$transaction([
+      prisma.users.update({
+        where: { id: userId },
+        data: { password_hash: passwordHash, password_changed_at: new Date() },
+      }),
+      prisma.sessions.deleteMany({
+        where: { user_id: userId, id: { not: currentSessionId } },
+      }),
+    ]);
   }
 
   async forgotPassword(email: string) {
-    const normalizedEmail = email.toLowerCase();
-
     const user = await prisma.users.findFirst({
-      where: { email: normalizedEmail },
+      where: { email: email.toLowerCase() },
     });
 
     if (!user) {
       return null;
     }
 
-    const resetSecret = process.env.JWT_RESET_SECRET;
-    if (!resetSecret) {
-      throw new Error("JWT_RESET_SECRET nu este definit în fișierul .env");
-    }
-
-    const resetToken = jwt.sign({ id: user.id }, resetSecret, {
+    const resetToken = jwt.sign({ id: user.id }, authConfig.resetSecret, {
       expiresIn: "15m",
+      algorithm: "HS256",
     });
 
     this.emailService.sendPasswordResetEmail(
@@ -120,30 +113,52 @@ export class AuthService {
   }
 
   async resetPassword(token: string, newPassword: string): Promise<void> {
-    const resetSecret = process.env.JWT_RESET_SECRET;
-    if (!resetSecret) {
-      throw new Error("JWT_RESET_SECRET nu este definit");
-    }
+    let userId: string;
+    let issuedAt: number;
 
     try {
-      const decoded = jwt.verify(token, resetSecret) as { id: string };
-
-      const salt = await bcryptjs.genSalt(10);
-      const passwordHash = await bcryptjs.hash(newPassword, salt);
-
-      const updatedResult = await prisma.users.updateMany({
-        where: { id: decoded.id },
-        data: { password_hash: passwordHash },
+      const payload = jwt.verify(token, authConfig.resetSecret, {
+        algorithms: ["HS256"],
       });
 
-      if (updatedResult.count === 0) {
-        throw new Error("USER_NOT_FOUND");
+      if (
+        typeof payload === "string" ||
+        typeof payload.id !== "string" ||
+        typeof payload.iat !== "number"
+      ) {
+        throw new Error("INVALID_TOKEN");
       }
+
+      userId = payload.id;
+      issuedAt = payload.iat;
     } catch (error) {
-      if (error instanceof Error && error.message === "USER_NOT_FOUND") {
-        throw error;
-      }
       throw new Error("INVALID_TOKEN", { cause: error });
     }
+
+    const user = await prisma.users.findUnique({
+      where: { id: userId },
+      select: { password_changed_at: true },
+    });
+
+    if (!user) {
+      throw new Error("USER_NOT_FOUND");
+    }
+
+    if (
+      user.password_changed_at &&
+      Math.floor(user.password_changed_at.getTime() / 1000) >= issuedAt
+    ) {
+      throw new Error("INVALID_TOKEN");
+    }
+
+    const passwordHash = await hashPassword(newPassword);
+
+    await prisma.$transaction([
+      prisma.users.update({
+        where: { id: userId },
+        data: { password_hash: passwordHash, password_changed_at: new Date() },
+      }),
+      prisma.sessions.deleteMany({ where: { user_id: userId } }),
+    ]);
   }
 }

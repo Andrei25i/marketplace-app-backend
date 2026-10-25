@@ -1,16 +1,34 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import apiRoutes from "./routes";
 import { errorHandler } from "./middlewares/errorHandler.middleware";
+import { originCheck } from "./middlewares/originCheck.middleware";
+import { authConfig } from "./config/auth.config";
+import { startSessionCleanup, stopSessionCleanup } from "./jobs/sessionCleanup";
 import prisma from "./prisma";
 
 const app = express();
 const PORT = Number(process.env.PORT) || 8000;
 
-app.use(cors());
-app.use(express.json());
+app.disable("x-powered-by");
 
+app.use(
+  cors({
+    origin: authConfig.frontendOrigin,
+    credentials: true,
+    exposedHeaders: ["X-User-Version"],
+  }),
+);
+app.use(express.json());
+app.use(cookieParser());
+
+app.use("/api", (_req, res, next) => {
+  res.setHeader("Cache-Control", "no-store");
+  next();
+});
+app.use("/api", originCheck);
 app.use("/api", apiRoutes);
 app.use(errorHandler);
 
@@ -18,8 +36,11 @@ const server = app.listen(PORT, "0.0.0.0", () => {
   console.log(`Serverul ruleaza pe http://localhost:${PORT}`);
 });
 
+startSessionCleanup();
+
 const shutdown = (signal: string) => {
   console.log(`${signal} primit, se opreste serverul...`);
+  stopSessionCleanup();
 
   server.close(async () => {
     await prisma.$disconnect();
