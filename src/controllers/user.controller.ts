@@ -1,6 +1,7 @@
 import { UserService } from "../services/user.service";
 import { Request, Response } from "express";
 import { UpdateProfileDTO } from "../types/user.type";
+import { clearAuthCookies } from "../utils/authCookies";
 
 export class UserController {
   private userService = new UserService();
@@ -69,6 +70,7 @@ export class UserController {
 
     try {
       await this.userService.deleteAccount(loggedUserId, password);
+      clearAuthCookies(res);
 
       return res
         .status(200)

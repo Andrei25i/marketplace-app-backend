@@ -1,29 +1,28 @@
 import { Request, Response, NextFunction } from "express";
-import jwt from "jsonwebtoken";
-import { JwtPayload } from "../types/express";
+import { sessionService } from "../services/session.service";
+import { ACCESS_COOKIE } from "../utils/authCookies";
 
-export const authMiddleware = (
+export const authMiddleware = async (
   req: Request,
   res: Response,
   next: NextFunction,
 ) => {
-  const authHeader = req.headers.authorization;
-  const token = authHeader && authHeader.split(" ")[1];
-
-  if (!token) {
-    return res.status(401).json({ error: "Acces refuzat. Token lipsă." });
-  }
-
   try {
-    const secret = process.env.JWT_SECRET;
-    if (!secret) {
-      throw new Error("JWT_SECRET nu este definit în .env");
+    const auth = await sessionService.authenticate(
+      req.cookies?.[ACCESS_COOKIE],
+    );
+
+    if (!auth) {
+      return res.status(401).json({
+        error: "Sesiune invalidă sau expirată.",
+        code: "UNAUTHENTICATED",
+      });
     }
 
-    const decodedPayload = jwt.verify(token, secret) as JwtPayload;
-    req.user = decodedPayload;
+    req.user = { id: auth.userId, sessionId: auth.sessionId };
+    res.setHeader("X-User-Version", String(auth.userVersion));
     next();
-  } catch {
-    return res.status(401).json({ error: "Token invalid sau expirat." });
+  } catch (error) {
+    next(error);
   }
 };
