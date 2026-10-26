@@ -9,20 +9,21 @@ datasource db {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model ads {
-  id          String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  title       String      @db.VarChar(255)
-  description String
-  price       Decimal     @db.Decimal(10, 2)
-  phone_number String     @db.VarChar(20)
-  created_at  DateTime?   @default(now()) @db.Timestamptz(6)
-  user_id     String      @db.Uuid
-  category_id Int?
-  city        String      @db.VarChar(255)
-  currency    String?     @default("RON") @db.VarChar(3)
-  images      Json?       @default("[]")
-  categories  categories? @relation(fields: [category_id], references: [id], onUpdate: NoAction, map: "fk_category")
-  users       users       @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_user")
-  favorites   favorites[]
+  id           String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  title        String      @db.VarChar(255)
+  description  String
+  price        Decimal     @db.Decimal(10, 2)
+  phone_number String      @db.VarChar(20)
+  created_at   DateTime?   @default(now()) @db.Timestamptz(6)
+  user_id      String      @db.Uuid
+  category_id  Int?
+  city         String      @db.VarChar(255)
+  currency     String?     @default("RON") @db.VarChar(3)
+  images       Json?       @default("[]")
+  categories   categories? @relation(fields: [category_id], references: [id], onUpdate: NoAction, map: "fk_category")
+  users        users       @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_user")
+  favorites    favorites[]
+  messages     messages[]
 }
 
 model categories {
@@ -43,19 +44,24 @@ model favorites {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model users {
-  id            String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  first_name    String      @db.VarChar(50)
-  last_name     String      @db.VarChar(50)
-  email         String      @unique @db.VarChar(100)
-  phone_number  String      @db.VarChar(20)
-  password_hash String      @db.VarChar(255)
-  city          String?     @db.VarChar(100)
-  created_at    DateTime?   @default(now()) @db.Timestamptz(6)
-  updated_at    DateTime    @default(now()) @updatedAt @db.Timestamptz(6)
-  password_changed_at DateTime?   @db.Timestamptz(6)
-  ads           ads[]
-  favorites     favorites[]
-  sessions      sessions[]
+  id                        String                      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  first_name                String                      @db.VarChar(50)
+  last_name                 String                      @db.VarChar(50)
+  email                     String                      @unique @db.VarChar(100)
+  phone_number              String                      @db.VarChar(20)
+  password_hash             String                      @db.VarChar(255)
+  city                      String?                     @db.VarChar(100)
+  created_at                DateTime?                   @default(now()) @db.Timestamptz(6)
+  updated_at                DateTime                    @default(now()) @updatedAt @db.Timestamptz(6)
+  password_changed_at       DateTime?                   @db.Timestamptz(6)
+  ads                       ads[]
+  favorites                 favorites[]
+  sessions                  sessions[]
+  conversations_low         conversations[]             @relation("ConversationUserLow")
+  conversations_high        conversations[]             @relation("ConversationUserHigh")
+  conversation_participants conversation_participants[]
+  messages                  messages[]
+  presence                  user_presence?
 }
 
 model sessions {
@@ -72,4 +78,65 @@ model sessions {
 
   @@index([user_id])
   @@index([expires_at])
+}
+
+/// This table contains check constraints (user_low_id < user_high_id), added manually in the migration.
+model conversations {
+  id              String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_low_id     String    @db.Uuid
+  user_high_id    String    @db.Uuid
+  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+  last_message_id String?   @unique @db.Uuid
+  last_message_at DateTime? @db.Timestamptz(6)
+
+  user_low     users                       @relation("ConversationUserLow", fields: [user_low_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_conversation_user_low")
+  user_high    users                       @relation("ConversationUserHigh", fields: [user_high_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_conversation_user_high")
+  last_message messages?                   @relation("ConversationLastMessage", fields: [last_message_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "fk_conversation_last_message")
+  messages     messages[]                  @relation("ConversationMessages")
+  participants conversation_participants[]
+
+  @@unique([user_low_id, user_high_id])
+  @@index([user_high_id])
+}
+
+model conversation_participants {
+  conversation_id String    @db.Uuid
+  user_id         String    @db.Uuid
+  last_read_at    DateTime? @db.Timestamptz(6)
+  cleared_at      DateTime? @db.Timestamptz(6)
+  is_hidden       Boolean   @default(false)
+
+  conversations conversations @relation(fields: [conversation_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_participant_conversation")
+  users         users         @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_participant_user")
+
+  @@id([conversation_id, user_id])
+  @@index([user_id, is_hidden])
+}
+
+model messages {
+  id              String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  conversation_id String    @db.Uuid
+  sender_id       String    @db.Uuid
+  content         String    @db.VarChar(2000)
+  client_id       String?   @db.Uuid
+  ad_id           String?   @db.Uuid
+  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+  edited_at       DateTime? @db.Timestamptz(6)
+  deleted_at      DateTime? @db.Timestamptz(6)
+  delivered_at    DateTime? @db.Timestamptz(6)
+  read_at         DateTime? @db.Timestamptz(6)
+
+  conversations   conversations  @relation("ConversationMessages", fields: [conversation_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_message_conversation")
+  users           users          @relation(fields: [sender_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_message_sender")
+  ads             ads?           @relation(fields: [ad_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "fk_message_ad")
+  last_message_of conversations? @relation("ConversationLastMessage")
+
+  @@unique([sender_id, client_id])
+  @@index([conversation_id, created_at(sort: Desc), id(sort: Desc)])
+}
+
+model user_presence {
+  user_id      String   @id @db.Uuid
+  last_seen_at DateTime @db.Timestamptz(6)
+  users        users    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_presence_user")
 }
