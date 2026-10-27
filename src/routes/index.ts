@@ -5,6 +5,7 @@ import authRouter from "./auth.routes";
 import adsRouter from "./ads.routes";
 import favoritesRouter from "./favorites.routes";
 import userRouter from "./user.routes";
+import conversationsRouter from "./conversations.routes";
 
 const router = Router();
 
@@ -15,5 +16,6 @@ router.use("/user", userRouter);
 router.use("/categories", categoriesRouter);
 router.use("/auth", authRouter);
 router.use("/favorites", favoritesRouter);
+router.use("/conversations", conversationsRouter);
 
 export default router;

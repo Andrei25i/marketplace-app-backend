@@ -228,10 +228,8 @@ export class MessagesService {
     conversationId: string,
     upToMessageId: string | null,
   ): Promise<ReadResult | null> {
-    const { otherUserId } = await this.conversationsService.getParticipation(
-      me,
-      conversationId,
-    );
+    const { otherUserId, clearedAt } =
+      await this.conversationsService.getParticipation(me, conversationId);
 
     const now = new Date();
     let upTo = now;
@@ -248,7 +246,10 @@ export class MessagesService {
     const received = {
       conversation_id: conversationId,
       sender_id: otherUserId,
-      created_at: { lte: upTo },
+      created_at: {
+        lte: upTo,
+        ...(clearedAt ? { gt: clearedAt } : {}),
+      },
     };
 
     const [, read] = await prisma.$transaction([
