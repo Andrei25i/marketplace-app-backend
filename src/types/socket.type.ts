@@ -82,3 +82,5 @@ export interface SocketData {
   verifiedConversations: Set<string>;
   typingAt: Map<string, number>;
 }
+
+export type InterServerEvents = Record<string, never>;
