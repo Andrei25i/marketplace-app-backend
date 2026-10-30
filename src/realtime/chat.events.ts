@@ -1,4 +1,3 @@
-import { error, log } from "node:console";
 import { ConversationsService } from "../services/conversations.service";
 import { getIO } from "./io";
 import { userRoom } from "./room";

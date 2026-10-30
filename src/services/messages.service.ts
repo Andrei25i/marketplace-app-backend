@@ -284,7 +284,7 @@ export class MessagesService {
     };
   }
 
-  async markDeliverd(
+  async markDelivered(
     recipientId: string,
     messageIds: string[],
   ): Promise<DeliveryBatch[]> {

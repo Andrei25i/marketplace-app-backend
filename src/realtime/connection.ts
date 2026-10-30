@@ -2,6 +2,7 @@ import prisma from "../prisma";
 import { presenceStore } from "./presence.store";
 import { sessionRoom, userRoom } from "./room";
 import { AppServer } from "./types";
+import { deliverPendingOnConnect, registerDeliveryHandlers } from "./delivery";
 
 const saveLastSeen = async (userId: string) => {
   const now = new Date();
@@ -13,7 +14,7 @@ const saveLastSeen = async (userId: string) => {
       update: { last_seen_at: now },
     });
   } catch (error) {
-    console.error("Eroare la savlarea last_seen_at:", error);
+    console.error("Eroare la salvarea last_seen_at:", error);
   }
 };
 
@@ -23,6 +24,12 @@ export const registerConnectionHandlers = (io: AppServer) => {
 
     void socket.join([userRoom(userId), sessionRoom(sessionId)]);
     presenceStore.add(userId, socket.id);
+
+    void socket.join([userRoom(userId), sessionRoom(sessionId)]);
+    presenceStore.add(userId, socket.id);
+
+    registerDeliveryHandlers(io, socket);
+    deliverPendingOnConnect(io, userId);
 
     if (process.env.NODE_ENV !== "production") {
       console.log(`[socket] conectat ${socket.id} (user ${userId})`);

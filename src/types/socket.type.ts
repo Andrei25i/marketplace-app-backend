@@ -57,6 +57,7 @@ export interface ServerToClientEvents {
 }
 
 export interface ClientToServerEvents {
+  "message:received": (payload: { messageIds: string[] }) => void;
   "typing": (payload: { conversationId: string; isTyping: boolean }) => void;
   "presence:subscribe": (
     payload: { userIds: string[] },
