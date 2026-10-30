@@ -12,12 +12,6 @@ export interface MessageUpdatedPayload {
   message: MessageDTO;
 }
 
-export interface MessageDeletedPayload {
-  conversationId: string;
-  messageId: string;
-  deletedAt: string;
-}
-
 export interface MessageDeliveredPayload {
   conversationId: string;
   messageIds: string[];
@@ -52,16 +46,11 @@ export interface PresenceDTO {
 }
 
 export interface ServerToClientEvents {
-  "message:new": (
-    payload: MessageNewPayload,
-    ack: (received: boolean) => void,
-  ) => void;
+  "message:new": (payload: MessageNewPayload) => void;
   "message:updated": (payload: MessageUpdatedPayload) => void;
-  "message:deleted": (payload: MessageDeletedPayload) => void;
   "message:delivered": (payload: MessageDeliveredPayload) => void;
   "conversation:read": (payload: ConversationReadPayload) => void;
   "conversation:hidden": (payload: ConversationRefPayload) => void;
-  "conversation:removed": (payload: ConversationRefPayload) => void;
   "unread:updated": (payload: UnreadPayload) => void;
   "typing": (payload: TypingPayload) => void;
   "presence:update": (payload: PresenceDTO) => void;
