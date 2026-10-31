@@ -37,7 +37,7 @@ export class ChatEvents {
         conversation: recipientConversation,
       });
 
-      await this.emitUnread(reicipientId);
+      // The client updates the unread count: only it knows if the recipient is currently viewing the conversation
     };
 
     run().catch(logEmitError("message:new"));
