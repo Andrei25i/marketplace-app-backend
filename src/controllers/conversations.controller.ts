@@ -4,6 +4,7 @@ import { MessagesService } from "../services/messages.service";
 import { chatConfig } from "../config/chat.config";
 import { isUuid } from "../utils/isUuid";
 import { normalizeMessageContent } from "../utils/messageContent";
+import { ChatEvents } from "../realtime/chat.events";
 
 const EDIT_WINDOW_MINUTES = Math.round(chatConfig.editWindowMs / 60_000);
 
@@ -50,6 +51,7 @@ const CONTENT_ERROR = `Mesajul trebuie să conțină între 1 și ${chatConfig.m
 export class ConversationsController {
   private conversationsService = new ConversationsService();
   private messagesService = new MessagesService();
+  private chatEvents = new ChatEvents();
 
   private requireUser(req: Request, res: Response): string | null {
     const userId = req.user?.id;
@@ -165,6 +167,7 @@ export class ConversationsController {
 
     try {
       await this.conversationsService.hide(me, conversationId);
+      this.chatEvents.conversationHidden(me, conversationId);
       return res.status(204).end();
     } catch (error) {
       return sendChatError(res, error, "Eroare la ștergerea conversației");
@@ -233,6 +236,15 @@ export class ConversationsController {
         adId,
       });
 
+      if (result.created) {
+        this.chatEvents.messageSent(
+          me,
+          result.recipientId,
+          conversationId,
+          result.message,
+        );
+      }
+
       return res.status(result.created ? 201 : 200).json(result.message);
     } catch (error) {
       return sendChatError(res, error, "Eroare la trimiterea mesajului");
@@ -262,6 +274,7 @@ export class ConversationsController {
         messageId,
         content,
       );
+      this.chatEvents.messageUpdated(me, result.recipientId, result.message);
 
       return res.status(200).json(result.message);
     } catch (error) {
@@ -285,6 +298,12 @@ export class ConversationsController {
         me,
         conversationId,
         messageId,
+      );
+      this.chatEvents.messageUpdated(
+        me,
+        result.recipientId,
+        result.message,
+        true,
       );
 
       return res.status(200).json(result.message);
@@ -312,6 +331,7 @@ export class ConversationsController {
         conversationId,
         upToMessageId,
       );
+      if (result) this.chatEvents.conversationRead(result);
 
       return res.status(200).json({
         readAt: result?.readAt ?? null,

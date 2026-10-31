@@ -112,7 +112,7 @@ export class AuthService {
     return resetToken;
   }
 
-  async resetPassword(token: string, newPassword: string): Promise<void> {
+  async resetPassword(token: string, newPassword: string): Promise<string> {
     let userId: string;
     let issuedAt: number;
 
@@ -160,5 +160,7 @@ export class AuthService {
       }),
       prisma.sessions.deleteMany({ where: { user_id: userId } }),
     ]);
+
+    return userId;
   }
 }

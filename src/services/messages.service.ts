@@ -106,6 +106,10 @@ export class MessagesService {
             tx,
           );
 
+        await tx.$queryRaw`
+          SELECT id FROM conversations WHERE id = ${conversationId}::uuid FOR UPDATE
+        `;
+
         if (input.adId) {
           const ad = await tx.ads.findUnique({
             where: { id: input.adId },
@@ -284,7 +288,7 @@ export class MessagesService {
     };
   }
 
-  async markDeliverd(
+  async markDelivered(
     recipientId: string,
     messageIds: string[],
   ): Promise<DeliveryBatch[]> {
