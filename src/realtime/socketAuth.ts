@@ -19,7 +19,7 @@ const authenticateSocket = async (
 
   socket.data.userId = auth.userId;
   socket.data.sessionId = auth.sessionId;
-  socket.data.verifiedConversations = new Set();
+  socket.data.conversationPeers = new Map();
   socket.data.typingAt = new Map();
 
   return null;

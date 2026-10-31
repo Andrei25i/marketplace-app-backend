@@ -69,7 +69,7 @@ export interface ClientToServerEvents {
 export interface SocketData {
   userId: string;
   sessionId: string;
-  verifiedConversations: Set<string>;
+  conversationPeers: Map<string, string>;
   typingAt: Map<string, number>;
 }
 
