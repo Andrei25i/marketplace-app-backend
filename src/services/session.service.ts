@@ -266,14 +266,18 @@ export class SessionService {
     };
   }
 
-  async revokeFromCookies(refreshRaw: unknown, accessRaw: unknown) {
+  async revokeFromCookies(
+    refreshRaw: unknown,
+    accessRaw: unknown,
+  ): Promise<string | null> {
     const sessionId =
       parseRefreshToken(refreshRaw)?.sessionId ??
       verifyAccessToken(accessRaw, true)?.sessionId;
 
-    if (sessionId) {
-      await prisma.sessions.deleteMany({ where: { id: sessionId } });
-    }
+    if (!sessionId) return null;
+
+    await prisma.sessions.deleteMany({ where: { id: sessionId } });
+    return sessionId;
   }
 
   async revokeForUser(userId: string, sessionId: string) {

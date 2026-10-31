@@ -10,6 +10,7 @@ import {
 } from "../utils/authCookies";
 import { isUuid } from "../utils/isUuid";
 import { getClientIp } from "../utils/clientIp";
+import { disconnectSession, disconnectUser } from "../realtime/disconnect";
 
 const MIN_PASSWORD_LENGTH = 6;
 
@@ -130,10 +131,11 @@ export class AuthController {
 
   logout = async (req: Request, res: Response) => {
     try {
-      await sessionService.revokeFromCookies(
+      const sessionId = await sessionService.revokeFromCookies(
         req.cookies?.[REFRESH_COOKIE],
         req.cookies?.[ACCESS_COOKIE],
       );
+      if (sessionId) disconnectSession(sessionId);
     } catch (error) {
       console.error("Eroare la logout:", error);
     }
@@ -180,6 +182,7 @@ export class AuthController {
         currentPassword,
         newPassword,
       );
+      disconnectUser(auth.id, auth.sessionId);
 
       return res.status(200).json({
         message:
@@ -237,6 +240,7 @@ export class AuthController {
       if (count === 0) {
         return res.status(404).json({ error: "Sesiunea nu a fost găsită." });
       }
+      disconnectSession(id);
 
       if (id === auth.sessionId) {
         clearAuthCookies(res);
@@ -260,6 +264,7 @@ export class AuthController {
         auth.id,
         auth.sessionId,
       );
+      disconnectUser(auth.id, auth.sessionId);
       return res.status(200).json({ revoked });
     } catch (error) {
       console.error("Eroare la revocarea sesiunilor:", error);
@@ -308,7 +313,8 @@ export class AuthController {
     }
 
     try {
-      await this.authService.resetPassword(token, newPassword);
+      const userId = await this.authService.resetPassword(token, newPassword);
+      disconnectUser(userId);
       clearAuthCookies(res);
 
       return res

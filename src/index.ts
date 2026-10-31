@@ -9,6 +9,10 @@ import { authConfig } from "./config/auth.config";
 import { startSessionCleanup, stopSessionCleanup } from "./jobs/sessionCleanup";
 import prisma from "./prisma";
 import { closeRealtime, initRealtime } from "./realtime/io";
+import {
+  startSocketSessionSweep,
+  stopSocketSessionSweep,
+} from "./jobs/socketSessionSweep";
 
 const app = express();
 const PORT = Number(process.env.PORT) || 8000;
@@ -39,12 +43,12 @@ const server = app.listen(PORT, "0.0.0.0", () => {
 
 initRealtime(server);
 startSessionCleanup();
-
-startSessionCleanup();
+startSocketSessionSweep();
 
 const shutdown = (signal: string) => {
   console.log(`${signal} primit, se opreste serverul...`);
   stopSessionCleanup();
+  stopSocketSessionSweep();
 
   void closeRealtime().then(async () => {
     await prisma.$disconnect();
