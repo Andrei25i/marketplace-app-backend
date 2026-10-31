@@ -106,6 +106,10 @@ export class MessagesService {
             tx,
           );
 
+        await tx.$queryRaw`
+          SELECT id FROM conversations WHERE id = ${conversationId}::uuid FOR UPDATE
+        `;
+
         if (input.adId) {
           const ad = await tx.ads.findUnique({
             where: { id: input.adId },
