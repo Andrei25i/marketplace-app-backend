@@ -42,5 +42,4 @@ export interface UpdateAdDTO {
   images: AdImage[];
   category_id: number;
   city: string;
-  deletedPublicIds?: string[];
 }
