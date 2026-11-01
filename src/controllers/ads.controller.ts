@@ -1,9 +1,44 @@
 import { Request, Response } from "express";
 import { AdsService } from "../services/ads.service";
-import { AdImage, UpdateAdDTO } from "../types/ads.type";
+import { MediaService, UploadedMedia } from "../services/media.service";
+import { UpdateAdDTO } from "../types/ads.type";
+import { adImagePublicId, isOwnedBy, userTag } from "../utils/mediaPaths";
+
+const MAX_AD_IMAGES = 10;
+
+function validateAdImages(images: unknown, userId: string): string | null {
+  if (!Array.isArray(images) || images.length === 0) {
+    return "Trebuie să existe cel puțin o imagine.";
+  }
+  if (images.length > MAX_AD_IMAGES) {
+    return `Poți folosi maximum ${MAX_AD_IMAGES} imagini.`;
+  }
+
+  const urlPrefix = `https://res.cloudinary.com/${process.env.CLOUDINARY_CLOUD_NAME}/`;
+  const allValid = images.every(
+    (img) =>
+      img &&
+      typeof img === "object" &&
+      isOwnedBy(img.public_id, userId) &&
+      typeof img.url === "string" &&
+      img.url.startsWith(urlPrefix) &&
+      img.url.includes(img.public_id),
+  );
+  if (!allValid) {
+    return "Structura imaginilor este invalidă.";
+  }
+
+  const ids = images.map((img) => img.public_id);
+  if (new Set(ids).size !== ids.length) {
+    return "Aceeași imagine apare de mai multe ori.";
+  }
+
+  return null;
+}
 
 export class AdsController {
   private adsService = new AdsService();
+  private mediaService = new MediaService();
 
   getAll = async (req: Request, res: Response) => {
     try {
@@ -59,29 +94,9 @@ export class AdsController {
       city,
     } = req.body;
 
-    const isValidImages =
-      Array.isArray(images) &&
-      images.length > 0 &&
-      images.every(
-        (image) =>
-          image &&
-          typeof image === "object" &&
-          typeof image.url === "string" &&
-          image.url.trim().length > 0 &&
-          typeof image.public_id === "string" &&
-          image.public_id.trim().length > 0,
-      );
-
-    if (!isValidImages) {
-      return res.status(400).json({
-        error: "Structura imaginilor este invalidă.",
-      });
-    }
-
-    if (images.length > 10) {
-      return res.status(400).json({
-        error: "Poți folosi maximum 10 imagini.",
-      });
+    const imagesError = validateAdImages(images, loggedUserId);
+    if (imagesError) {
+      return res.status(400).json({ error: imagesError });
     }
 
     if (
@@ -89,9 +104,6 @@ export class AdsController {
       !description ||
       !price ||
       !phone_number ||
-      !isValidImages ||
-      !Array.isArray(images) ||
-      images.length === 0 ||
       !category_id ||
       !city
     ) {
@@ -173,9 +185,6 @@ export class AdsController {
       !body.description ||
       !body.price ||
       !body.phone_number ||
-      !body.images ||
-      !Array.isArray(body.images) ||
-      body.images.length === 0 ||
       !body.category_id ||
       !body.city
     ) {
@@ -185,11 +194,9 @@ export class AdsController {
       });
     }
 
-    const isValidImages = body.images.every((img) => img.url && img.public_id);
-    if (!isValidImages) {
-      return res
-        .status(400)
-        .json({ error: "Structura imaginilor este invalidă." });
+    const imagesError = validateAdImages(body.images, loggedUserId);
+    if (imagesError) {
+      return res.status(400).json({ error: imagesError });
     }
 
     try {
@@ -214,55 +221,74 @@ export class AdsController {
   };
 
   uploadImages = async (req: Request, res: Response) => {
-    const files = req.files as Express.Multer.File[];
+    const loggedUserId = req.user?.id;
+    if (!loggedUserId) {
+      return res.status(401).json({ error: "Neautorizat." });
+    }
 
+    const files = req.files as Express.Multer.File[];
     if (!files || files.length === 0) {
-      return res.status(400).json({
-        error: "Nicio imagine validă trimisă.",
-      });
+      return res.status(400).json({ error: "Nicio imagine validă trimisă." });
     }
 
     const results = await Promise.allSettled(
-      files.map((file) => this.adsService.uploadImageToCloudinary(file.buffer)),
+      files.map((file) =>
+        this.mediaService.uploadBuffer({
+          buffer: file.buffer,
+          publicId: adImagePublicId(loggedUserId),
+          tags: [userTag(loggedUserId), "ads"],
+        }),
+      ),
     );
 
-    const uploadedImages = results
+    const uploaded = results
       .filter(
-        (result): result is PromiseFulfilledResult<AdImage> =>
-          result.status === "fulfilled",
+        (r): r is PromiseFulfilledResult<UploadedMedia> =>
+          r.status === "fulfilled",
       )
-      .map((result) => result.value);
+      .map((r) => r.value);
 
-    if (uploadedImages.length === 0) {
-      return res.status(500).json({
-        error: "Nicio imagine nu a putut fi încărcată.",
-      });
+    if (uploaded.length !== files.length) {
+      results
+        .filter((r) => r.status === "rejected")
+        .forEach((r) =>
+          console.error("Upload eșuat:", (r as PromiseRejectedResult).reason),
+        );
+      await this.mediaService.deleteByPublicIds(
+        uploaded.map((u) => u.public_id),
+      );
+      return res
+        .status(500)
+        .json({ error: "Imaginile nu au putut fi încărcate." });
     }
 
-    return res.status(201).json(uploadedImages);
+    return res
+      .status(201)
+      .json(uploaded.map(({ url, public_id }) => ({ url, public_id })));
   };
 
   deleteImages = async (req: Request, res: Response) => {
-    const { publicIds } = req.body;
+    const loggedUserId = req.user?.id;
+    if (!loggedUserId) {
+      return res.status(401).json({ error: "Neautorizat." });
+    }
 
+    const { publicIds } = req.body;
     if (
       !Array.isArray(publicIds) ||
-      !publicIds.every((publicId) => typeof publicId === "string")
+      publicIds.length > 100 ||
+      !publicIds.every((id) => typeof id === "string")
     ) {
-      return res.status(400).json({
-        error: "Lista public_id este invalidă",
+      return res.status(400).json({ error: "Lista public_id este invalidă" });
+    }
+
+    if (!publicIds.every((id) => isOwnedBy(id, loggedUserId))) {
+      return res.status(403).json({
+        error: "Nu ai permisiunea să ștergi aceste imagini.",
       });
     }
 
-    try {
-      await this.adsService.deleteImages(publicIds);
-
-      return res.status(204).send();
-    } catch (err) {
-      console.error("Eroare la ștergerea imaginilor:", err);
-      return res.status(500).json({
-        error: "Imaginile nu au putut fi șterse",
-      });
-    }
+    await this.mediaService.deleteByPublicIds(publicIds);
+    return res.status(204).send();
   };
 }

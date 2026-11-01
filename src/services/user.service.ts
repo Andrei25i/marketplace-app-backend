@@ -1,8 +1,8 @@
 import prisma from "../prisma";
 import bcryptjs from "bcryptjs";
-import cloudinary from "../config/cloudinary";
 import { UpdateProfileDTO } from "../types/user.type";
 import { Prisma } from "@prisma/client";
+import { MediaService } from "./media.service";
 
 export const privateUserSelect = {
   id: true,
@@ -16,6 +16,8 @@ export const privateUserSelect = {
 } satisfies Prisma.usersSelect;
 
 export class UserService {
+  private mediaService = new MediaService();
+
   async getUserProfile(userId: string) {
     const user = await prisma.users.findUnique({
       where: { id: userId },
@@ -60,33 +62,8 @@ export class UserService {
       throw new Error("INVALID_PASSWORD");
     }
 
-    const userAds = await prisma.ads.findMany({
-      where: { user_id: userId },
-      select: {
-        images: true,
-      },
-    });
-
-    const publicIdsToDelete: string[] = [];
-    for (const ad of userAds) {
-      const images = ad.images as Array<{ public_id?: string }> | null;
-      if (images && Array.isArray(images)) {
-        images.forEach((img) => {
-          if (img.public_id) publicIdsToDelete.push(img.public_id);
-        });
-      }
-    }
-
-    if (publicIdsToDelete.length > 0) {
-      const deletePromises = publicIdsToDelete.map((id) =>
-        cloudinary.uploader.destroy(id),
-      );
-      Promise.allSettled(deletePromises).catch(console.error);
-    }
-
-    await prisma.users.delete({
-      where: { id: userId },
-    });
+    await prisma.users.delete({ where: { id: userId } });
+    void this.mediaService.deleteUserFolder(userId);
   }
 
   async updateProfile(userId: string, data: UpdateProfileDTO) {

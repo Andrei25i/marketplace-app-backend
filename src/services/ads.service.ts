@@ -6,10 +6,19 @@ import {
   GetAdsFilters,
   UpdateAdDTO,
 } from "../types/ads.type";
-import cloudinary from "../config/cloudinary";
 import { matchesText } from "../utils/normalizeText";
+import { MediaService } from "./media.service";
+
+const getPublicIds = (images: unknown): string[] =>
+  Array.isArray(images)
+    ? images
+        .map((img: AdImage | null) => img?.public_id)
+        .filter((id): id is string => typeof id === "string" && id.length > 0)
+    : [];
 
 export class AdsService {
+  private mediaService = new MediaService();
+
   async getAllAds(filters: GetAdsFilters) {
     const { search, category, minPrice, maxPrice, sort, city, userId } =
       filters;
@@ -137,35 +146,16 @@ export class AdsService {
       throw new Error("FORBIDDEN");
     }
 
-    const images = ad.images as Array<{ public_id?: string }> | null;
+    await prisma.ads.delete({ where: { id: adId } });
 
-    if (images && Array.isArray(images) && images.length > 0) {
-      try {
-        const deletePromises = images.map((img) => {
-          if (img.public_id) {
-            return cloudinary.uploader.destroy(img.public_id);
-          }
-          return Promise.resolve();
-        });
-
-        await Promise.all(deletePromises);
-      } catch (cloudinaryErr) {
-        console.error(
-          "Eroare la ștergerea fișierelor din Cloudinary:",
-          cloudinaryErr,
-        );
-      }
-    }
-
-    await prisma.ads.delete({
-      where: { id: adId },
-    });
+    const publicIds = getPublicIds(ad.images);
+    await this.mediaService.deleteByPublicIds(publicIds);
   }
 
   async updateAd(adId: string, loggedUserId: string, data: UpdateAdDTO) {
     const ad = await prisma.ads.findUnique({
       where: { id: adId },
-      select: { user_id: true },
+      select: { user_id: true, images: true },
     });
 
     if (!ad) {
@@ -190,43 +180,10 @@ export class AdsService {
       },
     });
 
-    if (
-      data.deletedPublicIds &&
-      Array.isArray(data.deletedPublicIds) &&
-      data.deletedPublicIds.length > 0
-    ) {
-      const deletePromises = data.deletedPublicIds.map((public_id) =>
-        cloudinary.uploader.destroy(public_id),
-      );
-
-      Promise.allSettled(deletePromises).then((results) => {
-        results.forEach((res, index) => {
-          if (res.status === "rejected") {
-            console.error(
-              `Eroare la ștergerea imaginii ${data.deletedPublicIds![index]} din Cloudinary:`,
-              res.reason,
-            );
-          }
-        });
-      });
-    }
+    const keptIds = new Set(getPublicIds(data.images));
+    const removeIds = getPublicIds(ad.images).filter((id) => !keptIds.has(id));
+    await this.mediaService.deleteByPublicIds(removeIds);
 
     return updatedAd;
-  }
-
-  uploadImageToCloudinary(buffer: Buffer): Promise<AdImage> {
-    return new Promise((resolve, reject) => {
-      const stream = cloudinary.uploader.upload_stream((err, result) => {
-        if (err || !result) return reject(err);
-        resolve({ url: result.secure_url, public_id: result.public_id });
-      });
-      stream.end(buffer);
-    });
-  }
-
-  async deleteImages(publicIds: string[]) {
-    await Promise.allSettled(
-      publicIds.map((publicId) => cloudinary.uploader.destroy(publicId)),
-    );
   }
 }
