@@ -5,6 +5,7 @@ import { chatConfig } from "../config/chat.config";
 import { isUuid } from "../utils/isUuid";
 import { normalizeMessageContent } from "../utils/messageContent";
 import { ChatEvents } from "../realtime/chat.events";
+import { AttachmentsService } from "../services/attachments.service";
 
 const EDIT_WINDOW_MINUTES = Math.round(chatConfig.editWindowMs / 60_000);
 
@@ -12,6 +13,7 @@ const CHAT_ERRORS: Record<string, [number, string]> = {
   CONVERSATION_NOT_FOUND: [404, "Conversația nu a fost găsită."],
   RECIPIENT_NOT_FOUND: [404, "Utilizatorul nu a fost găsit sau nu există."],
   CANNOT_MESSAGE_SELF: [400, "Nu îți poți trimite mesaje ție însuți."],
+  EMPTY_MESSAGE: [400, "Un mesaj fără imagini nu poate rămâne fără text."],
   AD_NOT_FOUND: [404, "Anunțul nu există sau a fost șters."],
   MESSAGE_NOT_FOUND: [404, "Mesajul nu a fost găsit."],
   NOT_MESSAGE_OWNER: [403, "Poți modifica doar mesajele trimise de tine."],
@@ -22,6 +24,20 @@ const CHAT_ERRORS: Record<string, [number, string]> = {
   ],
   INVALID_CURSOR: [400, "Parametrul de paginare este invalid."],
   CLIENT_ID_CONFLICT: [409, "Identificatorul mesajului este deja folosit."],
+  NO_FILES: [400, "Nu ai trimis nicio imagine."],
+  TOO_MANY_ATTACHMENTS: [
+    400,
+    `Poți trimite maximum ${chatConfig.maxAttachmentsPerMessage} imagini într-un mesaj.`,
+  ],
+  UNSUPPORTED_FILE_TYPE: [
+    400,
+    "Format neacceptat. Folosește JPG, PNG, WEBP, GIF, HEIC sau AVIF.",
+  ],
+  UPLOAD_FAILED: [502, "Imaginile nu au putut fi încărcate. Încearcă din nou."],
+  INVALID_ATTACHMENTS: [
+    400,
+    "Unele imagini nu mai sunt disponibile. Încarcă-le din nou.",
+  ],
 };
 
 const sendChatError = (res: Response, error: unknown, context: string) => {
@@ -46,12 +62,25 @@ const parseLimit = (raw: unknown, fallback: number, max: number): number => {
   return Math.min(value, max);
 };
 
-const CONTENT_ERROR = `Mesajul trebuie să conțină între 1 și ${chatConfig.maxMessageLength} de caractere.`;
+const parseAttachmentIds = (raw: unknown): string[] | null => {
+  if (raw == null) return [];
+  if (!Array.isArray(raw) || raw.length > chatConfig.maxAttachmentsPerMessage) {
+    return null;
+  }
+  const ids = raw.map(uuidOrNull);
+  if (ids.some((id) => id === null)) return null;
+  if (new Set(ids).size !== ids.length) return null;
+  return ids as string[];
+};
+
+const SEND_CONTENT_ERROR = `Mesajul trebuie să conțină text sau cel puțin o imagine (maximum ${chatConfig.maxMessageLength} de caractere).`;
+const EDIT_CONTENT_ERROR = `Textul mesajului este invalid sau depășește ${chatConfig.maxMessageLength} de caractere.`;
 
 export class ConversationsController {
   private conversationsService = new ConversationsService();
   private messagesService = new MessagesService();
   private chatEvents = new ChatEvents();
+  private attachmentsService = new AttachmentsService();
 
   private requireUser(req: Request, res: Response): string | null {
     const userId = req.user?.id;
@@ -213,12 +242,19 @@ export class ConversationsController {
     if (!conversationId) return;
 
     const body = req.body ?? {};
-    const content = normalizeMessageContent(body.content);
+    const attachmentIds = parseAttachmentIds(body.attachmentIds);
+    if (attachmentIds === null) {
+      return res.status(400).json({ error: "Lista de imagini este invalidă." });
+    }
+
+    const content = normalizeMessageContent(body.content, {
+      allowEmpty: attachmentIds.length > 0,
+    });
     const clientId = uuidOrNull(body.clientId);
     const adId = body.adId == null ? null : uuidOrNull(body.adId);
 
-    if (!content) {
-      return res.status(400).json({ error: CONTENT_ERROR });
+    if (content === null) {
+      return res.status(400).json({ error: SEND_CONTENT_ERROR });
     }
     if (!clientId) {
       return res
@@ -234,6 +270,7 @@ export class ConversationsController {
         content,
         clientId,
         adId,
+        attachmentIds,
       });
 
       if (result.created) {
@@ -251,6 +288,26 @@ export class ConversationsController {
     }
   };
 
+  uploadAttachments = async (req: Request, res: Response) => {
+    const me = this.requireUser(req, res);
+    if (!me) return;
+    const conversationId = this.requireConversationId(req, res);
+    if (!conversationId) return;
+
+    const files = (req.files as Express.Multer.File[] | undefined) ?? [];
+
+    try {
+      const attachments = await this.attachmentsService.uploadImages(
+        me,
+        conversationId,
+        files,
+      );
+      return res.status(201).json(attachments);
+    } catch (error) {
+      return sendChatError(res, error, "Eroare la încărcarea imaginilor");
+    }
+  };
+
   editMessage = async (req: Request, res: Response) => {
     const me = this.requireUser(req, res);
     if (!me) return;
@@ -262,9 +319,11 @@ export class ConversationsController {
       return res.status(400).json({ error: "ID-ul mesajului este invalid." });
     }
 
-    const content = normalizeMessageContent(req.body?.content);
-    if (!content) {
-      return res.status(400).json({ error: CONTENT_ERROR });
+    const content = normalizeMessageContent(req.body?.content, {
+      allowEmpty: true,
+    });
+    if (content === null) {
+      return res.status(400).json({ error: EDIT_CONTENT_ERROR });
     }
 
     try {

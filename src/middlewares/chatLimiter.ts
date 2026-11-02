@@ -12,3 +12,14 @@ export const messageLimiter = rateLimit({
     error: "Trimiți mesaje prea repede. Așteaptă câteva momente.",
   },
 });
+
+export const attachmentLimiter = rateLimit({
+  windowMs: chatConfig.attachmentRateWindowMs,
+  max: chatConfig.attachmentRateMax,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req: Request) => req.user?.id ?? "anonymous",
+  message: {
+    error: "Încarci imagini prea des. Așteaptă câteva momente.",
+  },
+});

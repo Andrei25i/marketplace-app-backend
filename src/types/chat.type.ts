@@ -5,6 +5,17 @@ export interface MessageAdRef {
   title: string;
 }
 
+export type AttachmentKind = "image" | "audio";
+
+export interface MessageAttachmentDTO {
+  id: string;
+  kind: AttachmentKind;
+  url: string;
+  width: number | null;
+  height: number | null;
+  duration_ms: number | null;
+}
+
 export interface MessageDTO {
   id: string;
   conversation_id: string;
@@ -12,6 +23,7 @@ export interface MessageDTO {
   content: string | null;
   client_id: string | null;
   ad: MessageAdRef | null;
+  attachments: MessageAttachmentDTO[];
   status: MessageStatus;
   created_at: string;
   edited_at: string | null;
@@ -45,6 +57,7 @@ export interface SendMessageInput {
   content: string;
   clientId: string;
   adId: string | null;
+  attachmentIds: string[];
 }
 
 export interface ReadResult {

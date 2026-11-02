@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { chatConfig } from "../config/chat.config";
 import prisma from "../prisma";
 import {
@@ -9,6 +10,7 @@ import {
 import { isUniqueViolation } from "../utils/prismaErrors";
 import { messageSelect, toMessageDTO } from "./chat.mappers";
 import { ConversationsService } from "./conversations.service";
+import { MediaService } from "./media.service";
 
 export interface SendResult {
   message: MessageDTO;
@@ -52,6 +54,7 @@ const groupDeliveries = (
 
 export class MessagesService {
   private conversationsService = new ConversationsService();
+  private mediaService = new MediaService();
 
   async list(
     me: string,
@@ -118,7 +121,7 @@ export class MessagesService {
           if (!ad) throw new Error("AD_NOT_FOUND");
         }
 
-        const message = await tx.messages.create({
+        const created = await tx.messages.create({
           data: {
             conversation_id: conversationId,
             sender_id: me,
@@ -126,26 +129,39 @@ export class MessagesService {
             client_id: input.clientId,
             ad_id: input.adId,
           },
-          select: messageSelect,
+          select: { id: true, created_at: true },
         });
+
+        await this.linkAttachments(
+          tx,
+          me,
+          conversationId,
+          created.id,
+          input.attachmentIds,
+        );
 
         await tx.conversations.updateMany({
           where: {
             id: conversationId,
             OR: [
               { last_message_at: null },
-              { last_message_at: { lte: message.created_at } },
+              { last_message_at: { lte: created.created_at } },
             ],
           },
           data: {
-            last_message_id: message.id,
-            last_message_at: message.created_at,
+            last_message_id: created.id,
+            last_message_at: created.created_at,
           },
         });
 
         await tx.conversation_participants.updateMany({
           where: { conversation_id: conversationId, is_hidden: true },
           data: { is_hidden: false },
+        });
+
+        const message = await tx.messages.findUniqueOrThrow({
+          where: { id: created.id },
+          select: messageSelect,
         });
 
         return {
@@ -198,6 +214,10 @@ export class MessagesService {
       throw new Error("EDIT_WINDOW_EXPIRED");
     }
 
+    if (content === "" && existing.attachments.length === 0) {
+      throw new Error("EMPTY_MESSAGE");
+    }
+
     const updated = await prisma.messages.update({
       where: { id: messageId },
       data: { content, edited_at: new Date() },
@@ -218,11 +238,26 @@ export class MessagesService {
     );
     await this.getOwnMessage(me, conversationId, messageId);
 
-    const deleted = await prisma.messages.update({
-      where: { id: messageId },
-      data: { deleted_at: new Date(), content: "" },
-      select: messageSelect,
+    const { deleted, removedFiles } = await prisma.$transaction(async (tx) => {
+      const removedFiles = await tx.message_attachments.findMany({
+        where: { message_id: messageId },
+        select: { public_id: true, resource_type: true },
+      });
+
+      await tx.message_attachments.deleteMany({
+        where: { message_id: messageId },
+      });
+
+      const deleted = await tx.messages.update({
+        where: { id: messageId },
+        data: { deleted_at: new Date(), content: "" },
+        select: messageSelect,
+      });
+
+      return { deleted, removedFiles };
     });
+
+    void this.mediaService.deleteAssets(removedFiles);
 
     return { message: toMessageDTO(deleted), recipientId: otherUserId };
   }
@@ -339,5 +374,26 @@ export class MessagesService {
     if (message.deleted_at) throw new Error("MESSAGE_DELETED");
 
     return message;
+  }
+
+  private async linkAttachments(
+    tx: Prisma.TransactionClient,
+    me: string,
+    conversationId: string,
+    messageId: string,
+    attachmentIds: string[],
+  ) {
+    for (const [position, id] of attachmentIds.entries()) {
+      const { count } = await tx.message_attachments.updateMany({
+        where: {
+          id,
+          uploader_id: me,
+          conversation_id: conversationId,
+          message_id: null,
+        },
+        data: { message_id: messageId, position },
+      });
+      if (count !== 1) throw new Error("INVALID_ATTACHMENTS");
+    }
   }
 }
