@@ -1,5 +1,6 @@
 const SECOND = 1000;
 const MINUTE = 60 * SECOND;
+const HOUR = 60 * MINUTE;
 
 export const chatConfig = {
   // Messages
@@ -15,6 +16,13 @@ export const chatConfig = {
   // Rate limit message sending (per user)
   messageRateWindowMs: 10 * SECOND,
   messageRateMax: 30,
+
+  // Attachments
+  maxAttachmentsPerMessage: 10,
+  pendingAttachmentTtlMs: 24 * HOUR,
+  attachmentCleanupIntervalMs: HOUR,
+  attachmentRateWindowMs: MINUTE,
+  attachmentRateMax: 20,
 
   // Realtime
   typingThrottleMs: 2 * SECOND,

@@ -10,6 +10,15 @@ import { presenceStore } from "../realtime/presence.store";
 const toIso = (date: Date | null | undefined): string | null =>
   date ? date.toISOString() : null;
 
+export const attachmentSelect = {
+  id: true,
+  kind: true,
+  url: true,
+  width: true,
+  height: true,
+  duration_ms: true,
+} satisfies Prisma.message_attachmentsSelect;
+
 export const messageSelect = {
   id: true,
   conversation_id: true,
@@ -22,6 +31,7 @@ export const messageSelect = {
   delivered_at: true,
   read_at: true,
   ads: { select: { id: true, title: true } },
+  attachments: { select: attachmentSelect, orderBy: { position: "asc" } },
 } satisfies Prisma.messagesSelect;
 
 export type MessageRow = Prisma.messagesGetPayload<{
@@ -46,6 +56,7 @@ export const toMessageDTO = (message: MessageRow): MessageDTO => {
     content: isDeleted ? null : message.content,
     client_id: message.client_id,
     ad: isDeleted ? null : message.ads,
+    attachments: isDeleted ? [] : message.attachments,
     status: getMessageStatus(message),
     created_at: message.created_at.toISOString(),
     edited_at: toIso(message.edited_at),

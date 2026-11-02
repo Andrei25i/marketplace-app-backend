@@ -1,7 +1,9 @@
 import { Router } from "express";
 import { authMiddleware } from "../middlewares/auth.middleware";
-import { messageLimiter } from "../middlewares/chatLimiter";
+import { attachmentLimiter, messageLimiter } from "../middlewares/chatLimiter";
 import { ConversationsController } from "../controllers/conversations.controller";
+import { upload } from "../middlewares/upload.middleware";
+import { chatConfig } from "../config/chat.config";
 
 const router = Router();
 const conversationsController = new ConversationsController();
@@ -17,6 +19,12 @@ router.delete("/:id", conversationsController.hide);
 router.post("/:id/read", conversationsController.markRead);
 
 router.get("/:id/messages", conversationsController.listMessages);
+router.post(
+  "/:id/attachments",
+  attachmentLimiter,
+  upload.array("images", chatConfig.maxAttachmentsPerMessage),
+  conversationsController.uploadAttachments,
+);
 router.post(
   "/:id/messages",
   messageLimiter,
