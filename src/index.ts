@@ -13,6 +13,10 @@ import {
   startSocketSessionSweep,
   stopSocketSessionSweep,
 } from "./jobs/socketSessionSweep";
+import {
+  startAttachmentCleanup,
+  stopAttachmentCleanup,
+} from "./jobs/attachmentCleanup";
 
 const app = express();
 const PORT = Number(process.env.PORT) || 8000;
@@ -44,11 +48,13 @@ const server = app.listen(PORT, "0.0.0.0", () => {
 initRealtime(server);
 startSessionCleanup();
 startSocketSessionSweep();
+startAttachmentCleanup();
 
 const shutdown = (signal: string) => {
   console.log(`${signal} primit, se opreste serverul...`);
   stopSessionCleanup();
   stopSocketSessionSweep();
+  stopAttachmentCleanup();
 
   void closeRealtime().then(async () => {
     await prisma.$disconnect();

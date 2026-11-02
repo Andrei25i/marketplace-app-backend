@@ -120,4 +120,21 @@ export class MediaService {
       console.warn(`[media] Folderul ${prefix} nu a putut fi șters`, err);
     }
   }
+
+  async deleteAssets(
+    items: { public_id: string; resource_type: string }[],
+  ): Promise<void> {
+    const byType = new Map<ResourceType, string[]>();
+
+    for (const { public_id, resource_type } of items) {
+      const type = RESOURCE_TYPES.includes(resource_type as ResourceType)
+        ? (resource_type as ResourceType)
+        : "image";
+      byType.set(type, [...(byType.get(type) ?? []), public_id]);
+    }
+
+    for (const [type, ids] of byType) {
+      await this.deleteByPublicIds(ids, type);
+    }
+  }
 }

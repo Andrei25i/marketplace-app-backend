@@ -10,6 +10,7 @@ import {
 import { isUniqueViolation } from "../utils/prismaErrors";
 import { messageSelect, toMessageDTO } from "./chat.mappers";
 import { ConversationsService } from "./conversations.service";
+import { MediaService } from "./media.service";
 
 export interface SendResult {
   message: MessageDTO;
@@ -53,6 +54,7 @@ const groupDeliveries = (
 
 export class MessagesService {
   private conversationsService = new ConversationsService();
+  private mediaService = new MediaService();
 
   async list(
     me: string,
@@ -212,6 +214,10 @@ export class MessagesService {
       throw new Error("EDIT_WINDOW_EXPIRED");
     }
 
+    if (content === "" && existing.attachments.length === 0) {
+      throw new Error("EMPTY_MESSAGE");
+    }
+
     const updated = await prisma.messages.update({
       where: { id: messageId },
       data: { content, edited_at: new Date() },
@@ -232,11 +238,26 @@ export class MessagesService {
     );
     await this.getOwnMessage(me, conversationId, messageId);
 
-    const deleted = await prisma.messages.update({
-      where: { id: messageId },
-      data: { deleted_at: new Date(), content: "" },
-      select: messageSelect,
+    const { deleted, removedFiles } = await prisma.$transaction(async (tx) => {
+      const removedFiles = await tx.message_attachments.findMany({
+        where: { message_id: messageId },
+        select: { public_id: true, resource_type: true },
+      });
+
+      await tx.message_attachments.deleteMany({
+        where: { message_id: messageId },
+      });
+
+      const deleted = await tx.messages.update({
+        where: { id: messageId },
+        data: { deleted_at: new Date(), content: "" },
+        select: messageSelect,
+      });
+
+      return { deleted, removedFiles };
     });
+
+    void this.mediaService.deleteAssets(removedFiles);
 
     return { message: toMessageDTO(deleted), recipientId: otherUserId };
   }

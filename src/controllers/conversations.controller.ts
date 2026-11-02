@@ -13,6 +13,7 @@ const CHAT_ERRORS: Record<string, [number, string]> = {
   CONVERSATION_NOT_FOUND: [404, "Conversația nu a fost găsită."],
   RECIPIENT_NOT_FOUND: [404, "Utilizatorul nu a fost găsit sau nu există."],
   CANNOT_MESSAGE_SELF: [400, "Nu îți poți trimite mesaje ție însuți."],
+  EMPTY_MESSAGE: [400, "Un mesaj fără imagini nu poate rămâne fără text."],
   AD_NOT_FOUND: [404, "Anunțul nu există sau a fost șters."],
   MESSAGE_NOT_FOUND: [404, "Mesajul nu a fost găsit."],
   NOT_MESSAGE_OWNER: [403, "Poți modifica doar mesajele trimise de tine."],
@@ -72,7 +73,8 @@ const parseAttachmentIds = (raw: unknown): string[] | null => {
   return ids as string[];
 };
 
-const SEND_CONTENT_ERROR = `Mesajul trebuie să conțină text sau cel puțin o imagine.`;
+const SEND_CONTENT_ERROR = `Mesajul trebuie să conțină text sau cel puțin o imagine (maximum ${chatConfig.maxMessageLength} de caractere).`;
+const EDIT_CONTENT_ERROR = `Textul mesajului este invalid sau depășește ${chatConfig.maxMessageLength} de caractere.`;
 
 export class ConversationsController {
   private conversationsService = new ConversationsService();
@@ -317,9 +319,11 @@ export class ConversationsController {
       return res.status(400).json({ error: "ID-ul mesajului este invalid." });
     }
 
-    const content = normalizeMessageContent(req.body?.content);
-    if (!content) {
-      return res.status(400).json({ error: SEND_CONTENT_ERROR });
+    const content = normalizeMessageContent(req.body?.content, {
+      allowEmpty: true,
+    });
+    if (content === null) {
+      return res.status(400).json({ error: EDIT_CONTENT_ERROR });
     }
 
     try {

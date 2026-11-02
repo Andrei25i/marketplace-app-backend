@@ -89,4 +89,25 @@ export class AttachmentsService {
       throw error;
     }
   }
+
+  async cleanupPending(): Promise<number> {
+    const cutoff = new Date(Date.now() - chatConfig.pendingAttachmentTtlMs);
+
+    const removed = await prisma.$queryRaw<
+      { public_id: string; resource_type: string }[]
+    >`
+      DELETE FROM message_attachments
+      WHERE message_id IS NULL
+        AND id IN (
+          SELECT id FROM message_attachments
+          WHERE message_id IS NULL AND created_at < ${cutoff}
+          ORDER BY created_at
+          LIMIT 500
+        )
+      RETURNING public_id, resource_type
+    `;
+
+    await this.mediaService.deleteAssets(removed);
+    return removed.length;
+  }
 }

@@ -3,9 +3,11 @@ import { Request, Response } from "express";
 import { UpdateProfileDTO } from "../types/user.type";
 import { clearAuthCookies } from "../utils/authCookies";
 import { disconnectUser } from "../realtime/disconnect";
+import { ChatEvents } from "../realtime/chat.events";
 
 export class UserController {
   private userService = new UserService();
+  private chatEvents = new ChatEvents();
 
   getMe = async (req: Request, res: Response) => {
     const loggedUserId = req.user?.id;
@@ -70,8 +72,16 @@ export class UserController {
     }
 
     try {
-      await this.userService.deleteAccount(loggedUserId, password);
+      const removed = await this.userService.deleteAccount(
+        loggedUserId,
+        password,
+      );
       disconnectUser(loggedUserId);
+
+      for (const { conversationId, otherUserId } of removed) {
+        this.chatEvents.conversationHidden(otherUserId, conversationId);
+      }
+
       clearAuthCookies(res);
 
       return res

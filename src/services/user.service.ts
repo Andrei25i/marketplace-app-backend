@@ -62,8 +62,30 @@ export class UserService {
       throw new Error("INVALID_PASSWORD");
     }
 
+    const otherFiles = await prisma.message_attachments.findMany({
+      where: {
+        uploader_id: { not: userId },
+        conversations: {
+          OR: [{ user_low_id: userId }, { user_high_id: userId }],
+        },
+      },
+      select: { public_id: true, resource_type: true },
+    });
+
+    const conversations = await prisma.conversations.findMany({
+      where: { OR: [{ user_low_id: userId }, { user_high_id: userId }] },
+      select: { id: true, user_low_id: true, user_high_id: true },
+    });
+
     await prisma.users.delete({ where: { id: userId } });
+
     void this.mediaService.deleteUserFolder(userId);
+    void this.mediaService.deleteAssets(otherFiles);
+
+    return conversations.map((c) => ({
+      conversationId: c.id,
+      otherUserId: c.user_low_id === userId ? c.user_high_id : c.user_low_id,
+    }));
   }
 
   async updateProfile(userId: string, data: UpdateProfileDTO) {
