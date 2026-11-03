@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { authConfig } from "../config/auth.config";
 
 export type EmailRecipient = {
   first_name: string;
@@ -112,7 +113,7 @@ export class EmailService {
     user: EmailRecipient,
     resetToken: string,
   ): Promise<void> {
-    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+    const frontendUrl = authConfig.frontendOrigins[0];
     const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`;
     const html = this.getResetPasswordHtml(user.first_name, resetLink);
 

@@ -25,7 +25,7 @@ app.disable("x-powered-by");
 
 app.use(
   cors({
-    origin: authConfig.frontendOrigin,
+    origin: authConfig.frontendOrigins,
     credentials: true,
     exposedHeaders: ["X-User-Version"],
   }),

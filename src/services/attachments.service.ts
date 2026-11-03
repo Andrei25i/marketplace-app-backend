@@ -114,7 +114,7 @@ export class AttachmentsService {
       });
     } catch (error) {
       console.error("[chat] Upload vocal eșuat:", error);
-      throw new Error("VOICE_UPLOAD_FAILED");
+      throw new Error("VOICE_UPLOAD_FAILED", { cause: error });
     }
 
     const durationMs = media.duration

@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { authConfig } from "../config/auth.config";
+import { isAllowedOrigin } from "../config/auth.config";
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
@@ -12,7 +12,7 @@ export const originCheck = (
 
   const origin = req.get("origin");
 
-  if (!origin || origin === authConfig.frontendOrigin) return next();
+  if (!origin || isAllowedOrigin(origin)) return next();
 
   return res.status(403).json({ error: "Origine nepermisă." });
 };
