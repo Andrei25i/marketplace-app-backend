@@ -25,7 +25,7 @@ export const initRealtime = (server: HttpServer): AppServer => {
     serveClient: false,
     maxHttpBufferSize: chatConfig.socketMaxPayloadBytes,
     cors: {
-      origin: authConfig.frontendOrigin,
+      origin: authConfig.frontendOrigins,
       credentials: true,
     },
   });

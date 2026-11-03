@@ -90,6 +90,72 @@ export class AttachmentsService {
     }
   }
 
+  async uploadVoice(
+    me: string,
+    conversationId: string,
+    file: Express.Multer.File | undefined,
+    clientDurationMs: number,
+  ): Promise<MessageAttachmentDTO> {
+    await this.conversationsService.getParticipation(me, conversationId);
+
+    if (!file) throw new Error("NO_VOICE_FILE");
+    if (!file.mimetype.startsWith("audio/")) {
+      throw new Error("UNSUPPORTED_AUDIO_TYPE");
+    }
+
+    let media: UploadedMedia;
+    try {
+      media = await this.mediaService.uploadBuffer({
+        buffer: file.buffer,
+        publicId: chatMediaPublicId(me, conversationId),
+        resourceType: "video",
+        format: "mp3",
+        tags: [userTag(me), "chat", "voice"],
+      });
+    } catch (error) {
+      console.error("[chat] Upload vocal eșuat:", error);
+      throw new Error("VOICE_UPLOAD_FAILED", { cause: error });
+    }
+
+    const durationMs = media.duration
+      ? Math.round(media.duration * 1000)
+      : Math.round(clientDurationMs);
+
+    const maxDurationMs =
+      chatConfig.maxVoiceDurationMs + chatConfig.voiceDurationToleranceMs;
+
+    if (
+      !Number.isFinite(durationMs) ||
+      durationMs <= 0 ||
+      durationMs > maxDurationMs
+    ) {
+      await this.mediaService.deleteByPublicIds([media.public_id], "video");
+      throw new Error("INVALID_VOICE_DURATION");
+    }
+
+    try {
+      return await prisma.message_attachments.create({
+        data: {
+          conversation_id: conversationId,
+          uploader_id: me,
+          kind: "audio",
+          public_id: media.public_id,
+          resource_type: media.resource_type,
+          url: media.url,
+          width: null,
+          height: null,
+          bytes: media.bytes,
+          format: media.format ?? null,
+          duration_ms: durationMs,
+        },
+        select: attachmentSelect,
+      });
+    } catch (error) {
+      await this.mediaService.deleteByPublicIds([media.public_id], "video");
+      throw error;
+    }
+  }
+
   async cleanupPending(): Promise<number> {
     const cutoff = new Date(Date.now() - chatConfig.pendingAttachmentTtlMs);
 

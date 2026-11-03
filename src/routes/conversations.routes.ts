@@ -2,7 +2,7 @@ import { Router } from "express";
 import { authMiddleware } from "../middlewares/auth.middleware";
 import { attachmentLimiter, messageLimiter } from "../middlewares/chatLimiter";
 import { ConversationsController } from "../controllers/conversations.controller";
-import { upload } from "../middlewares/upload.middleware";
+import { upload, voiceUpload } from "../middlewares/upload.middleware";
 import { chatConfig } from "../config/chat.config";
 
 const router = Router();
@@ -24,6 +24,12 @@ router.post(
   attachmentLimiter,
   upload.array("images", chatConfig.maxAttachmentsPerMessage),
   conversationsController.uploadAttachments,
+);
+router.post(
+  "/:id/attachments/voice",
+  attachmentLimiter,
+  voiceUpload.single("voice"),
+  conversationsController.uploadVoice,
 );
 router.post(
   "/:id/messages",

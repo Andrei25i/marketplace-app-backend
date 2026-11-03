@@ -1,5 +1,5 @@
 import { parseCookie } from "cookie";
-import { authConfig } from "../config/auth.config";
+import { isAllowedOrigin } from "../config/auth.config";
 import { AppSocket } from "./types";
 import { sessionService } from "../services/session.service";
 import { ACCESS_COOKIE } from "../utils/authCookies";
@@ -11,7 +11,7 @@ const authenticateSocket = async (
   socket: AppSocket,
 ): Promise<SocketAuthError | null> => {
   const origin = socket.handshake.headers.origin;
-  if (origin && origin !== authConfig.frontendOrigin) return "FORBIDDEN_ORIGIN";
+  if (origin && !isAllowedOrigin(origin)) return "FORBIDDEN_ORIGIN";
 
   const cookies = parseCookie(socket.handshake.headers.cookie ?? "");
   const auth = await sessionService.authenticate(cookies[ACCESS_COOKIE]);

@@ -14,7 +14,10 @@ export const authConfig = {
   accessSecret: required("JWT_SECRET"),
   refreshSecret: required("REFRESH_TOKEN_SECRET"),
   resetSecret: required("JWT_RESET_SECRET"),
-  frontendOrigin: required("FRONTEND_URL").trim().replace(/\/$/, ""),
+  frontendOrigins: required("FRONTEND_URL")
+    .split(",")
+    .map((origin) => origin.trim().replace(/\/$/, ""))
+    .filter(Boolean),
 
   accessTtlMs:
     (Number(process.env.ACCESS_TOKEN_TTL_SECONDS) || 15 * 60) * SECOND,
@@ -26,3 +29,6 @@ export const authConfig = {
 
   cookieSecure: process.env.COOKIE_SECURE !== "false",
 };
+
+export const isAllowedOrigin = (origin: string) =>
+  authConfig.frontendOrigins.includes(origin);

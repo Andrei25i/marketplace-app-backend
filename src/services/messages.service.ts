@@ -121,6 +121,8 @@ export class MessagesService {
           if (!ad) throw new Error("AD_NOT_FOUND");
         }
 
+        await this.assertVoiceIsAlone(tx, input.content, input.attachmentIds);
+
         const created = await tx.messages.create({
           data: {
             conversation_id: conversationId,
@@ -209,6 +211,10 @@ export class MessagesService {
       conversationId,
     );
     const existing = await this.getOwnMessage(me, conversationId, messageId);
+
+    if (existing.attachments.some((a) => a.kind === "audio")) {
+      throw new Error("MESSAGE_NOT_EDITABLE");
+    }
 
     if (Date.now() - existing.created_at.getTime() > chatConfig.editWindowMs) {
       throw new Error("EDIT_WINDOW_EXPIRED");
@@ -394,6 +400,22 @@ export class MessagesService {
         data: { message_id: messageId, position },
       });
       if (count !== 1) throw new Error("INVALID_ATTACHMENTS");
+    }
+  }
+
+  private async assertVoiceIsAlone(
+    tx: Prisma.TransactionClient,
+    content: string,
+    attachmentIds: string[],
+  ) {
+    if (attachmentIds.length === 0) return;
+
+    const audioCount = await tx.message_attachments.count({
+      where: { id: { in: attachmentIds }, kind: "audio" },
+    });
+
+    if (audioCount > 0 && (attachmentIds.length > 1 || content !== "")) {
+      throw new Error("INVALID_VOICE_MESSAGE");
     }
   }
 }
