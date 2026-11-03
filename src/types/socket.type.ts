@@ -33,10 +33,13 @@ export interface UnreadPayload {
   total: number;
 }
 
+export type ChatActivity = "typing" | "recording";
+
 export interface TypingPayload {
   conversationId: string;
   userId: string;
   isTyping: boolean;
+  kind: ChatActivity;
 }
 
 export interface PresenceDTO {
@@ -58,7 +61,11 @@ export interface ServerToClientEvents {
 
 export interface ClientToServerEvents {
   "message:received": (payload: { messageIds: string[] }) => void;
-  "typing": (payload: { conversationId: string; isTyping: boolean }) => void;
+  "typing": (payload: {
+    conversationId: string;
+    isTyping: boolean;
+    kind?: ChatActivity;
+  }) => void;
   "presence:subscribe": (
     payload: { userIds: string[] },
     ack: (res: AckResponse<PresenceDTO[]>) => void,
@@ -70,7 +77,7 @@ export interface SocketData {
   userId: string;
   sessionId: string;
   conversationPeers: Map<string, string>;
-  typingAt: Map<string, number>;
+  typingAt: Map<string, { at: number; kind: ChatActivity }>;
 }
 
 export type InterServerEvents = Record<string, never>;
