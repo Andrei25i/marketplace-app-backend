@@ -38,6 +38,21 @@ const CHAT_ERRORS: Record<string, [number, string]> = {
     400,
     "Unele imagini nu mai sunt disponibile. Încarcă-le din nou.",
   ],
+  NO_VOICE_FILE: [400, "Nu ai trimis niciun mesaj vocal."],
+  UNSUPPORTED_AUDIO_TYPE: [400, "Formatul audio nu este acceptat."],
+  VOICE_UPLOAD_FAILED: [
+    502,
+    "Mesajul vocal nu a putut fi încărcat. Încearcă din nou.",
+  ],
+  INVALID_VOICE_DURATION: [
+    400,
+    `Mesajul vocal trebuie să aibă cel mult ${Math.round(chatConfig.maxVoiceDurationMs / 60_000)} minute.`,
+  ],
+  INVALID_VOICE_MESSAGE: [
+    400,
+    "Un mesaj vocal nu poate conține text sau imagini.",
+  ],
+  MESSAGE_NOT_EDITABLE: [400, "Mesajele vocale nu pot fi editate."],
 };
 
 const sendChatError = (res: Response, error: unknown, context: string) => {
@@ -305,6 +320,27 @@ export class ConversationsController {
       return res.status(201).json(attachments);
     } catch (error) {
       return sendChatError(res, error, "Eroare la încărcarea imaginilor");
+    }
+  };
+
+  uploadVoice = async (req: Request, res: Response) => {
+    const me = this.requireUser(req, res);
+    if (!me) return;
+    const conversationId = this.requireConversationId(req, res);
+    if (!conversationId) return;
+
+    const durationMs = Number(req.body?.durationMs);
+
+    try {
+      const attachment = await this.attachmentsService.uploadVoice(
+        me,
+        conversationId,
+        req.file,
+        durationMs,
+      );
+      return res.status(201).json(attachment);
+    } catch (error) {
+      return sendChatError(res, error, "Eroare la încărcarea mesajului vocal");
     }
   };
 

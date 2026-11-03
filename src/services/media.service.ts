@@ -12,6 +12,7 @@ export interface UploadedMedia {
   height?: number;
   bytes: number;
   format?: string;
+  duration?: number;
 }
 
 interface UploadParams {
@@ -19,6 +20,7 @@ interface UploadParams {
   publicId: string;
   resourceType?: ResourceType;
   tags?: string[];
+  format?: string;
 }
 
 const IMAGE_LIMIT = { width: 2048, height: 2048, crop: "limit" };
@@ -40,6 +42,7 @@ export class MediaService {
     publicId,
     resourceType = "image",
     tags = [],
+    format,
   }: UploadParams): Promise<UploadedMedia> {
     const options: UploadApiOptions = {
       public_id: publicId,
@@ -48,6 +51,7 @@ export class MediaService {
       overwrite: false,
       tags,
       ...(resourceType === "image" ? { transformation: [IMAGE_LIMIT] } : {}),
+      ...(format ? { format } : {}),
     };
 
     return new Promise((resolve, reject) => {
@@ -63,6 +67,9 @@ export class MediaService {
             height: result.height,
             bytes: result.bytes,
             format: result.format,
+            ...(typeof result.duration === "number"
+              ? { duration: result.duration }
+              : {}),
           });
         },
       );

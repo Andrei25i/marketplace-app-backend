@@ -24,6 +24,11 @@ export const chatConfig = {
   attachmentRateWindowMs: MINUTE,
   attachmentRateMax: 20,
 
+  // Voice messages
+  maxVoiceDurationMs: 5 * MINUTE,
+  voiceDurationToleranceMs: 2 * SECOND,
+  maxVoiceBytes: 10 * 1024 * 1024,
+
   // Realtime
   typingThrottleMs: 2 * SECOND,
   presenceGraceMs: 5 * SECOND,
