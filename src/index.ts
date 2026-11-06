@@ -17,6 +17,7 @@ import {
   startAttachmentCleanup,
   stopAttachmentCleanup,
 } from "./jobs/attachmentCleanup";
+import "./schemas/zod.config";
 
 const app = express();
 const PORT = Number(process.env.PORT) || 8000;
