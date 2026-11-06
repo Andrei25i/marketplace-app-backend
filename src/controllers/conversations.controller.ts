@@ -2,10 +2,20 @@ import { Request, Response } from "express";
 import { ConversationsService } from "../services/conversations.service";
 import { MessagesService } from "../services/messages.service";
 import { chatConfig } from "../config/chat.config";
-import { isUuid } from "../utils/isUuid";
-import { normalizeMessageContent } from "../utils/messageContent";
 import { ChatEvents } from "../realtime/chat.events";
 import { AttachmentsService } from "../services/attachments.service";
+import { getValidated } from "../middlewares/validate.middleware";
+import type {
+  ConversationParams,
+  CreateConversationInput,
+  EditMessageInput,
+  ListConversationsQuery,
+  ListMessagesQuery,
+  MarkReadInput,
+  MessageParams,
+  SendMessageInput,
+  UploadVoiceInput,
+} from "../types/chat.type";
 
 const EDIT_WINDOW_MINUTES = Math.round(chatConfig.editWindowMs / 60_000);
 
@@ -68,29 +78,6 @@ const sendChatError = (res: Response, error: unknown, context: string) => {
   return res.status(500).json({ error: "Eroare internă a serverului." });
 };
 
-const uuidOrNull = (value: unknown): string | null =>
-  typeof value === "string" && isUuid(value) ? value.toLowerCase() : null;
-
-const parseLimit = (raw: unknown, fallback: number, max: number): number => {
-  const value = typeof raw === "string" ? Number.parseInt(raw, 10) : NaN;
-  if (!Number.isFinite(value) || value < 1) return fallback;
-  return Math.min(value, max);
-};
-
-const parseAttachmentIds = (raw: unknown): string[] | null => {
-  if (raw == null) return [];
-  if (!Array.isArray(raw) || raw.length > chatConfig.maxAttachmentsPerMessage) {
-    return null;
-  }
-  const ids = raw.map(uuidOrNull);
-  if (ids.some((id) => id === null)) return null;
-  if (new Set(ids).size !== ids.length) return null;
-  return ids as string[];
-};
-
-const SEND_CONTENT_ERROR = `Mesajul trebuie să conțină text sau cel puțin o imagine (maximum ${chatConfig.maxMessageLength} de caractere).`;
-const EDIT_CONTENT_ERROR = `Textul mesajului este invalid sau depășește ${chatConfig.maxMessageLength} de caractere.`;
-
 export class ConversationsController {
   private conversationsService = new ConversationsService();
   private messagesService = new MessagesService();
@@ -106,40 +93,19 @@ export class ConversationsController {
     return userId;
   }
 
-  private requireConversationId(req: Request, res: Response): string | null {
-    const conversationId = uuidOrNull(req.params.id);
-    if (!conversationId) {
-      res.status(400).json({ error: "ID-ul conversației este invalid." });
-      return null;
-    }
-    return conversationId;
-  }
-
   list = async (req: Request, res: Response) => {
     const me = this.requireUser(req, res);
     if (!me) return;
 
-    const { cursor: rawCursor, limit: rawLimit } = req.query;
-    let cursor: Date | null = null;
-
-    if (rawCursor !== undefined) {
-      const parsed = typeof rawCursor === "string" ? new Date(rawCursor) : null;
-      if (!parsed || Number.isNaN(parsed.getTime())) {
-        return res.status(400).json({ error: CHAT_ERRORS.INVALID_CURSOR?.[1] });
-      }
-      cursor = parsed;
-    }
-
-    const limit = parseLimit(
-      rawLimit,
-      chatConfig.conversationsPageSize,
-      chatConfig.conversationsMaxPageSize,
+    const { cursor, limit } = getValidated<ListConversationsQuery>(
+      req,
+      "query",
     );
 
     try {
       const page = await this.conversationsService.listForUser(
         me,
-        cursor,
+        cursor ?? null,
         limit,
       );
       return res.status(200).json(page);
@@ -152,12 +118,7 @@ export class ConversationsController {
     const me = this.requireUser(req, res);
     if (!me) return;
 
-    const recipientId = uuidOrNull(req.body?.recipientId);
-    if (!recipientId) {
-      return res
-        .status(400)
-        .json({ error: "ID-ul destinatarului este invalid." });
-    }
+    const { recipientId } = req.body as CreateConversationInput;
 
     try {
       const conversation = await this.conversationsService.findOrCreate(
@@ -189,8 +150,11 @@ export class ConversationsController {
   getOne = async (req: Request, res: Response) => {
     const me = this.requireUser(req, res);
     if (!me) return;
-    const conversationId = this.requireConversationId(req, res);
-    if (!conversationId) return;
+
+    const { id: conversationId } = getValidated<ConversationParams>(
+      req,
+      "params",
+    );
 
     try {
       const conversation = await this.conversationsService.getForUser(
@@ -206,8 +170,11 @@ export class ConversationsController {
   hide = async (req: Request, res: Response) => {
     const me = this.requireUser(req, res);
     if (!me) return;
-    const conversationId = this.requireConversationId(req, res);
-    if (!conversationId) return;
+
+    const { id: conversationId } = getValidated<ConversationParams>(
+      req,
+      "params",
+    );
 
     try {
       await this.conversationsService.hide(me, conversationId);
@@ -221,27 +188,18 @@ export class ConversationsController {
   listMessages = async (req: Request, res: Response) => {
     const me = this.requireUser(req, res);
     if (!me) return;
-    const conversationId = this.requireConversationId(req, res);
-    if (!conversationId) return;
 
-    const { before: rawBefore, limit: rawLimit } = req.query;
-    const before = rawBefore === undefined ? null : uuidOrNull(rawBefore);
-
-    if (rawBefore !== undefined && !before) {
-      return res.status(400).json({ error: CHAT_ERRORS.INVALID_CURSOR?.[1] });
-    }
-
-    const limit = parseLimit(
-      rawLimit,
-      chatConfig.messagesPageSize,
-      chatConfig.messagesMaxPageSize,
+    const { id: conversationId } = getValidated<ConversationParams>(
+      req,
+      "params",
     );
+    const { before, limit } = getValidated<ListMessagesQuery>(req, "query");
 
     try {
       const page = await this.messagesService.list(
         me,
         conversationId,
-        before,
+        before ?? null,
         limit,
       );
       return res.status(200).json(page);
@@ -253,32 +211,13 @@ export class ConversationsController {
   sendMessage = async (req: Request, res: Response) => {
     const me = this.requireUser(req, res);
     if (!me) return;
-    const conversationId = this.requireConversationId(req, res);
-    if (!conversationId) return;
 
-    const body = req.body ?? {};
-    const attachmentIds = parseAttachmentIds(body.attachmentIds);
-    if (attachmentIds === null) {
-      return res.status(400).json({ error: "Lista de imagini este invalidă." });
-    }
-
-    const content = normalizeMessageContent(body.content, {
-      allowEmpty: attachmentIds.length > 0,
-    });
-    const clientId = uuidOrNull(body.clientId);
-    const adId = body.adId == null ? null : uuidOrNull(body.adId);
-
-    if (content === null) {
-      return res.status(400).json({ error: SEND_CONTENT_ERROR });
-    }
-    if (!clientId) {
-      return res
-        .status(400)
-        .json({ error: "Identificatorul mesajului (clientId) este invalid." });
-    }
-    if (body.adId != null && !adId) {
-      return res.status(400).json({ error: "ID-ul anunțului este invalid." });
-    }
+    const { id: conversationId } = getValidated<ConversationParams>(
+      req,
+      "params",
+    );
+    const { content, clientId, adId, attachmentIds } =
+      req.body as SendMessageInput;
 
     try {
       const result = await this.messagesService.send(me, conversationId, {
@@ -306,9 +245,11 @@ export class ConversationsController {
   uploadAttachments = async (req: Request, res: Response) => {
     const me = this.requireUser(req, res);
     if (!me) return;
-    const conversationId = this.requireConversationId(req, res);
-    if (!conversationId) return;
 
+    const { id: conversationId } = getValidated<ConversationParams>(
+      req,
+      "params",
+    );
     const files = (req.files as Express.Multer.File[] | undefined) ?? [];
 
     try {
@@ -326,10 +267,12 @@ export class ConversationsController {
   uploadVoice = async (req: Request, res: Response) => {
     const me = this.requireUser(req, res);
     if (!me) return;
-    const conversationId = this.requireConversationId(req, res);
-    if (!conversationId) return;
 
-    const durationMs = Number(req.body?.durationMs);
+    const { id: conversationId } = getValidated<ConversationParams>(
+      req,
+      "params",
+    );
+    const { durationMs } = req.body as UploadVoiceInput;
 
     try {
       const attachment = await this.attachmentsService.uploadVoice(
@@ -347,20 +290,12 @@ export class ConversationsController {
   editMessage = async (req: Request, res: Response) => {
     const me = this.requireUser(req, res);
     if (!me) return;
-    const conversationId = this.requireConversationId(req, res);
-    if (!conversationId) return;
 
-    const messageId = uuidOrNull(req.params.messageId);
-    if (!messageId) {
-      return res.status(400).json({ error: "ID-ul mesajului este invalid." });
-    }
-
-    const content = normalizeMessageContent(req.body?.content, {
-      allowEmpty: true,
-    });
-    if (content === null) {
-      return res.status(400).json({ error: EDIT_CONTENT_ERROR });
-    }
+    const { id: conversationId, messageId } = getValidated<MessageParams>(
+      req,
+      "params",
+    );
+    const { content } = req.body as EditMessageInput;
 
     try {
       const result = await this.messagesService.edit(
@@ -380,13 +315,11 @@ export class ConversationsController {
   deleteMessage = async (req: Request, res: Response) => {
     const me = this.requireUser(req, res);
     if (!me) return;
-    const conversationId = this.requireConversationId(req, res);
-    if (!conversationId) return;
 
-    const messageId = uuidOrNull(req.params.messageId);
-    if (!messageId) {
-      return res.status(400).json({ error: "ID-ul mesajului este invalid." });
-    }
+    const { id: conversationId, messageId } = getValidated<MessageParams>(
+      req,
+      "params",
+    );
 
     try {
       const result = await this.messagesService.softDelete(
@@ -410,15 +343,12 @@ export class ConversationsController {
   markRead = async (req: Request, res: Response) => {
     const me = this.requireUser(req, res);
     if (!me) return;
-    const conversationId = this.requireConversationId(req, res);
-    if (!conversationId) return;
 
-    const rawUpTo = req.body?.upToMessageId;
-    const upToMessageId = rawUpTo == null ? null : uuidOrNull(rawUpTo);
-
-    if (rawUpTo != null && !upToMessageId) {
-      return res.status(400).json({ error: "ID-ul mesajului este invalid." });
-    }
+    const { id: conversationId } = getValidated<ConversationParams>(
+      req,
+      "params",
+    );
+    const { upToMessageId } = req.body as MarkReadInput;
 
     try {
       const result = await this.messagesService.markRead(

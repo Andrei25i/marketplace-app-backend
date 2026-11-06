@@ -1,5 +1,15 @@
 import { NextFunction, Request, Response } from "express";
 import { MulterError } from "multer";
+import { ZodError } from "zod";
+import { collectFieldErrors, sendValidationError } from "./validate.middleware";
+
+const getBodyParserErrorType = (err: unknown): string | null =>
+  typeof err === "object" &&
+  err !== null &&
+  "type" in err &&
+  typeof err.type === "string"
+    ? err.type
+    : null;
 
 export const errorHandler = (
   err: unknown,
@@ -30,9 +40,19 @@ export const errorHandler = (
     return res.status(400).json({ error: err.message });
   }
 
-  if (err instanceof Error) {
-    console.error(err);
-    return res.status(400).json({ error: err.message });
+  if (err instanceof ZodError) {
+    return sendValidationError(res, collectFieldErrors(err));
+  }
+
+  const bodyErrorType = getBodyParserErrorType(err);
+  if (bodyErrorType === "entity.parse.failed") {
+    return res.status(400).json({
+      error: "Corpul cererii nu este un JSON valid.",
+      code: "INVALID_JSON",
+    });
+  }
+  if (bodyErrorType === "entity.too.large") {
+    return res.status(413).json({ error: "Datele trimise sunt prea mari." });
   }
 
   console.error(err);

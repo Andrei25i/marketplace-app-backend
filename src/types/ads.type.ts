@@ -6,40 +6,41 @@ export type AdSortOption =
   | "name_asc"
   | "name_desc";
 
-export type GetAdsFilters = {
-  search?: string;
-  category?: string;
-  minPrice?: string;
-  maxPrice?: string;
-  city?: string;
-  userId?: string;
-  sort?: AdSortOption;
-};
+export type AdCurrency = "RON" | "EUR";
 
-export interface AdImage {
-  url?: string;
-  public_id?: string;
+export interface GetAdsFilters {
+  search?: string | undefined;
+  category?: number | undefined;
+  minPrice?: number | undefined;
+  maxPrice?: number | undefined;
+  city?: string | undefined;
+  userId?: string | undefined;
+  sort?: AdSortOption | undefined;
 }
 
-export type CreateAdDTO = {
-  title: string;
-  description: string;
-  price: number;
-  phone_number: string;
-  currency?: string;
-  images: AdImage[];
-  category_id: number;
-  city: string;
-  user_id: string;
-};
+export interface AdImage {
+  url: string;
+  public_id: string;
+}
 
-export interface UpdateAdDTO {
+export interface AdInput {
   title: string;
   description: string;
   price: number;
   phone_number: string;
-  currency?: string;
-  images: AdImage[];
+  currency: AdCurrency;
   category_id: number;
   city: string;
+  images: AdImage[];
+}
+
+export type CreateAdDTO = AdInput & { user_id: string };
+export type UpdateAdDTO = AdInput;
+
+export interface AdIdParams {
+  id: string;
+}
+
+export interface DeleteImagesInput {
+  publicIds: string[];
 }

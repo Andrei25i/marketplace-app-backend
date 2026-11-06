@@ -1,49 +1,30 @@
 import { Request, Response } from "express";
 import { AdsService } from "../services/ads.service";
 import { MediaService, UploadedMedia } from "../services/media.service";
-import { UpdateAdDTO } from "../types/ads.type";
 import { adImagePublicId, isOwnedBy, userTag } from "../utils/mediaPaths";
+import { getValidated } from "../middlewares/validate.middleware";
+import type {
+  AdIdParams,
+  AdImage,
+  AdInput,
+  DeleteImagesInput,
+  GetAdsFilters,
+} from "../types/ads.type";
 
-const MAX_AD_IMAGES = 10;
+const FORBIDDEN_IMAGES = "Nu ai permisiunea să folosești aceste imagini.";
 
-function validateAdImages(images: unknown, userId: string): string | null {
-  if (!Array.isArray(images) || images.length === 0) {
-    return "Trebuie să existe cel puțin o imagine.";
-  }
-  if (images.length > MAX_AD_IMAGES) {
-    return `Poți folosi maximum ${MAX_AD_IMAGES} imagini.`;
-  }
-
-  const urlPrefix = `https://res.cloudinary.com/${process.env.CLOUDINARY_CLOUD_NAME}/`;
-  const allValid = images.every(
-    (img) =>
-      img &&
-      typeof img === "object" &&
-      isOwnedBy(img.public_id, userId) &&
-      typeof img.url === "string" &&
-      img.url.startsWith(urlPrefix) &&
-      img.url.includes(img.public_id),
-  );
-  if (!allValid) {
-    return "Structura imaginilor este invalidă.";
-  }
-
-  const ids = images.map((img) => img.public_id);
-  if (new Set(ids).size !== ids.length) {
-    return "Aceeași imagine apare de mai multe ori.";
-  }
-
-  return null;
-}
+const ownsAllImages = (images: AdImage[], userId: string) =>
+  images.every((img) => isOwnedBy(img.public_id, userId));
 
 export class AdsController {
   private adsService = new AdsService();
   private mediaService = new MediaService();
 
   getAll = async (req: Request, res: Response) => {
-    try {
-      const ads = await this.adsService.getAllAds(req.query);
+    const filters = getValidated<GetAdsFilters>(req, "query");
 
+    try {
+      const ads = await this.adsService.getAllAds(filters);
       return res.status(200).json(ads);
     } catch (error) {
       console.error("Eroare la preluarea anunțurilor:", error);
@@ -54,13 +35,7 @@ export class AdsController {
   };
 
   getById = async (req: Request, res: Response) => {
-    const { id } = req.params;
-
-    if (!id || typeof id !== "string") {
-      return res
-        .status(400)
-        .json({ error: "ID-ul anunțului este invalid sau lipsește." });
-    }
+    const { id } = getValidated<AdIdParams>(req, "params");
 
     try {
       const ad = await this.adsService.getAdById(id);
@@ -78,53 +53,20 @@ export class AdsController {
 
   create = async (req: Request, res: Response) => {
     const loggedUserId = req.user?.id;
-
     if (!loggedUserId) {
       return res.status(401).json({ error: "Neautorizat." });
     }
 
-    const {
-      title,
-      description,
-      price,
-      phone_number,
-      currency,
-      images,
-      category_id,
-      city,
-    } = req.body;
-
-    const imagesError = validateAdImages(images, loggedUserId);
-    if (imagesError) {
-      return res.status(400).json({ error: imagesError });
-    }
-
-    if (
-      !title ||
-      !description ||
-      !price ||
-      !phone_number ||
-      !category_id ||
-      !city
-    ) {
-      return res.status(400).json({
-        error: "Toate câmpurile și cel puțin o imagine sunt obligatorii.",
-      });
+    const body = req.body as AdInput;
+    if (!ownsAllImages(body.images, loggedUserId)) {
+      return res.status(403).json({ error: FORBIDDEN_IMAGES });
     }
 
     try {
       const newAd = await this.adsService.createAd({
-        title,
-        description,
-        price: parseFloat(price),
-        phone_number,
-        currency,
-        images,
-        category_id: parseInt(category_id),
-        city,
+        ...body,
         user_id: loggedUserId,
       });
-
       return res.status(201).json(newAd);
     } catch (error) {
       console.error("Eroare la crearea anunțului:", error);
@@ -133,20 +75,15 @@ export class AdsController {
   };
 
   delete = async (req: Request, res: Response) => {
-    const { id } = req.params;
     const loggedUserId = req.user?.id;
-
     if (!loggedUserId) {
       return res.status(401).json({ error: "Neautorizat." });
     }
 
-    if (!id || typeof id !== "string") {
-      return res.status(400).json({ error: "ID-ul anunțului este invalid." });
-    }
+    const { id } = getValidated<AdIdParams>(req, "params");
 
     try {
       await this.adsService.deleteAd(id, loggedUserId);
-
       return res
         .status(200)
         .json({ message: "Anunțul a fost șters cu succes." });
@@ -168,39 +105,19 @@ export class AdsController {
   };
 
   update = async (req: Request, res: Response) => {
-    const { id } = req.params;
     const loggedUserId = req.user?.id;
-
-    if (!id || typeof id !== "string") {
-      return res.status(400).json({ error: "ID-ul anunțului este invalid." });
-    }
-
     if (!loggedUserId) {
       return res.status(401).json({ error: "Neautorizat." });
     }
 
-    const body: UpdateAdDTO = req.body;
-    if (
-      !body.title ||
-      !body.description ||
-      !body.price ||
-      !body.phone_number ||
-      !body.category_id ||
-      !body.city
-    ) {
-      return res.status(400).json({
-        error:
-          "Toate câmpurile sunt obligatorii și trebuie să existe cel puțin o imagine.",
-      });
-    }
+    const { id } = getValidated<AdIdParams>(req, "params");
+    const body = req.body as AdInput;
 
-    const imagesError = validateAdImages(body.images, loggedUserId);
-    if (imagesError) {
-      return res.status(400).json({ error: imagesError });
+    if (!ownsAllImages(body.images, loggedUserId)) {
+      return res.status(403).json({ error: FORBIDDEN_IMAGES });
     }
 
     try {
-      body.price = parseFloat(body.price.toString());
       const updatedAd = await this.adsService.updateAd(id, loggedUserId, body);
       return res.status(200).json(updatedAd);
     } catch (error) {
@@ -273,14 +190,7 @@ export class AdsController {
       return res.status(401).json({ error: "Neautorizat." });
     }
 
-    const { publicIds } = req.body;
-    if (
-      !Array.isArray(publicIds) ||
-      publicIds.length > 100 ||
-      !publicIds.every((id) => typeof id === "string")
-    ) {
-      return res.status(400).json({ error: "Lista public_id este invalidă" });
-    }
+    const { publicIds } = req.body as DeleteImagesInput;
 
     if (!publicIds.every((id) => isOwnedBy(id, loggedUserId))) {
       return res.status(403).json({

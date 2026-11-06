@@ -1,20 +1,26 @@
-import { FavoritesService } from "../services/favorites.service";
 import { Request, Response } from "express";
+import { FavoritesService } from "../services/favorites.service";
+import { getValidated } from "../middlewares/validate.middleware";
+import type {
+  FavoriteAdParams,
+  GetFavoritesFilters,
+} from "../types/favorites.type";
 
 export class FavoritesController {
   private favoritesService = new FavoritesService();
 
   getAll = async (req: Request, res: Response) => {
     const loggedUserId = req.user?.id;
-
     if (!loggedUserId) {
       return res.status(401).json({ error: "Neautorizat." });
     }
 
+    const filters = getValidated<GetFavoritesFilters>(req, "query");
+
     try {
       const favorites = await this.favoritesService.getFavoriteAds(
         loggedUserId,
-        req.query,
+        filters,
       );
 
       return res.status(200).json(favorites);
@@ -25,16 +31,12 @@ export class FavoritesController {
   };
 
   add = async (req: Request, res: Response) => {
-    const { adId } = req.params;
     const loggedUserId = req.user?.id;
-
     if (!loggedUserId) {
       return res.status(401).json({ error: "Neautorizat." });
     }
 
-    if (!adId || typeof adId !== "string") {
-      return res.status(400).json({ error: "ID-ul anunțului este invalid." });
-    }
+    const { adId } = getValidated<FavoriteAdParams>(req, "params");
 
     try {
       const favorite = await this.favoritesService.addFavorite(
@@ -65,16 +67,12 @@ export class FavoritesController {
   };
 
   delete = async (req: Request, res: Response) => {
-    const { adId } = req.params;
     const loggedUserId = req.user?.id;
-
     if (!loggedUserId) {
       return res.status(401).json({ error: "Neautorizat." });
     }
 
-    if (!adId || typeof adId !== "string") {
-      return res.status(400).json({ error: "ID-ul anunțului este invalid." });
-    }
+    const { adId } = getValidated<FavoriteAdParams>(req, "params");
 
     try {
       const deletedFavorite = await this.favoritesService.deleteFavorite(

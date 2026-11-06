@@ -25,18 +25,18 @@ export class AdsService {
 
     const whereClause: Prisma.adsWhereInput = {};
 
-    if (category) {
-      whereClause.category_id = parseInt(category);
+    if (category !== undefined) {
+      whereClause.category_id = category;
     }
 
-    if (userId && userId.trim() !== "") {
+    if (userId) {
       whereClause.user_id = userId;
     }
 
-    if (minPrice || maxPrice) {
+    if (minPrice !== undefined || maxPrice !== undefined) {
       whereClause.price = {};
-      if (minPrice) whereClause.price.gte = parseFloat(minPrice);
-      if (maxPrice) whereClause.price.lte = parseFloat(maxPrice);
+      if (minPrice !== undefined) whereClause.price.gte = minPrice;
+      if (maxPrice !== undefined) whereClause.price.lte = maxPrice;
     }
 
     let orderByClause: Prisma.adsOrderByWithRelationInput = {

@@ -1,13 +1,15 @@
-import { AdSortOption } from "./ads.type";
+import type { AdSortOption, GetAdsFilters } from "./ads.type";
 
 export type FavoriteSortOption =
   AdSortOption | "favorited_date_asc" | "favorited_date_desc";
 
-export type GetFavoritesFilters = {
-  search?: string;
-  category?: string;
-  minPrice?: string;
-  maxPrice?: string;
-  sort?: FavoriteSortOption;
-  city?: string;
-};
+export interface GetFavoritesFilters extends Omit<
+  GetAdsFilters,
+  "userId" | "sort"
+> {
+  sort?: FavoriteSortOption | undefined;
+}
+
+export interface FavoriteAdParams {
+  adId: string;
+}

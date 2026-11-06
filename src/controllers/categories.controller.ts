@@ -1,15 +1,19 @@
 import { Request, Response } from "express";
 import { CategoriesService } from "../services/categories.service";
+import { getValidated } from "../middlewares/validate.middleware";
+import type {
+  CategoryIdParams,
+  GetCategoriesFilters,
+} from "../types/categories.type";
 
 export class CategoriesController {
   private categoriesService = new CategoriesService();
 
   getAllCategories = async (req: Request, res: Response) => {
+    const { sort } = getValidated<GetCategoriesFilters>(req, "query");
+
     try {
-      const sort = typeof req.query.sort === "string" ? req.query.sort : "id";
-
       const categories = await this.categoriesService.getAllCategories(sort);
-
       res.json(categories);
     } catch (error) {
       console.error(error);
@@ -18,15 +22,9 @@ export class CategoriesController {
   };
 
   getCategoryById = async (req: Request, res: Response) => {
+    const { id } = getValidated<CategoryIdParams>(req, "params");
+
     try {
-      const id = parseInt(req.params.id as string, 10);
-
-      if (isNaN(id)) {
-        return res
-          .status(400)
-          .json({ error: "ID-ul trebuie să fie un număr valid" });
-      }
-
       const category = await this.categoriesService.getCategoryById(id);
 
       if (!category) {

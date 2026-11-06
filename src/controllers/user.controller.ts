@@ -1,9 +1,14 @@
-import { UserService } from "../services/user.service";
 import { Request, Response } from "express";
-import { UpdateProfileDTO } from "../types/user.type";
+import { UserService } from "../services/user.service";
 import { clearAuthCookies } from "../utils/authCookies";
 import { disconnectUser } from "../realtime/disconnect";
 import { ChatEvents } from "../realtime/chat.events";
+import { getValidated } from "../middlewares/validate.middleware";
+import type {
+  DeleteAccountInput,
+  UpdateProfileDTO,
+  UserIdParams,
+} from "../types/user.type";
 
 export class UserController {
   private userService = new UserService();
@@ -11,7 +16,6 @@ export class UserController {
 
   getMe = async (req: Request, res: Response) => {
     const loggedUserId = req.user?.id;
-
     if (!loggedUserId) {
       return res.status(401).json({ error: "Neautorizat." });
     }
@@ -33,13 +37,7 @@ export class UserController {
   };
 
   getPublicUser = async (req: Request, res: Response) => {
-    const { id } = req.params;
-
-    if (!id || typeof id !== "string") {
-      return res
-        .status(400)
-        .json({ error: "ID-ul utilizatorului este invalid." });
-    }
+    const { id } = getValidated<UserIdParams>(req, "params");
 
     try {
       const user = await this.userService.getPublicProfile(id);
@@ -59,17 +57,11 @@ export class UserController {
 
   deleteAccount = async (req: Request, res: Response) => {
     const loggedUserId = req.user?.id;
-    const { password } = req.body;
-
     if (!loggedUserId) {
       return res.status(401).json({ error: "Neautorizat." });
     }
 
-    if (!password) {
-      return res.status(400).json({
-        error: "Parola este necesară pentru a confirma ștergerea contului.",
-      });
-    }
+    const { password } = req.body as DeleteAccountInput;
 
     try {
       const removed = await this.userService.deleteAccount(
@@ -105,25 +97,11 @@ export class UserController {
 
   updateProfile = async (req: Request, res: Response) => {
     const loggedUserId = req.user?.id;
-    const body: UpdateProfileDTO = req.body;
-
     if (!loggedUserId) {
       return res.status(401).json({ error: "Neautorizat." });
     }
 
-    const hasDataToUpdate =
-      body.first_name ||
-      body.last_name ||
-      body.email ||
-      body.phone_number ||
-      body.city;
-
-    if (!hasDataToUpdate) {
-      return res.status(400).json({
-        error:
-          "Nu ați furnizat date noi pentru actualizare. Nicio acțiune nu a fost efectuată.",
-      });
-    }
+    const body = req.body as UpdateProfileDTO;
 
     try {
       const updatedUser = await this.userService.updateProfile(
