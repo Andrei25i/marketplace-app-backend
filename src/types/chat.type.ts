@@ -68,3 +68,38 @@ export interface ReadResult {
   upTo: string;
   count: number;
 }
+
+export interface ConversationParams {
+  id: string;
+}
+
+export interface MessageParams {
+  id: string;
+  messageId: string;
+}
+
+export interface ListConversationsQuery {
+  cursor?: Date | undefined;
+  limit: number;
+}
+
+export interface ListMessagesQuery {
+  before?: string | undefined;
+  limit: number;
+}
+
+export interface CreateConversationInput {
+  recipientId: string;
+}
+
+export interface EditMessageInput {
+  content: string;
+}
+
+export interface MarkReadInput {
+  upToMessageId: string | null;
+}
+
+export interface UploadVoiceInput {
+  durationMs: number;
+}

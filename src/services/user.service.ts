@@ -110,15 +110,18 @@ export class UserService {
       }
     }
 
+    const updateData: Prisma.usersUpdateInput = {};
+    if (data.first_name !== undefined) updateData.first_name = data.first_name;
+    if (data.last_name !== undefined) updateData.last_name = data.last_name;
+    if (newEmail) updateData.email = newEmail;
+    if (data.phone_number !== undefined) {
+      updateData.phone_number = data.phone_number;
+    }
+    if (data.city !== undefined) updateData.city = data.city;
+
     return prisma.users.update({
       where: { id: userId },
-      data: {
-        first_name: data.first_name,
-        last_name: data.last_name,
-        ...(newEmail ? { email: newEmail } : {}),
-        phone_number: data.phone_number,
-        city: data.city,
-      },
+      data: updateData,
       select: privateUserSelect,
     });
   }

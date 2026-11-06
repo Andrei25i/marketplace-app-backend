@@ -13,18 +13,14 @@ export class FavoritesService {
 
     const adsWhere: Prisma.adsWhereInput = {};
 
-    if (category && category.trim() !== "") {
-      const parsedCat = parseInt(category);
-      if (!isNaN(parsedCat)) adsWhere.category_id = parsedCat;
+    if (category !== undefined) {
+      adsWhere.category_id = category;
     }
 
-    if (
-      (minPrice && minPrice.trim() !== "") ||
-      (maxPrice && maxPrice.trim() !== "")
-    ) {
+    if (minPrice !== undefined || maxPrice !== undefined) {
       adsWhere.price = {};
-      if (minPrice) adsWhere.price.gte = parseFloat(minPrice);
-      if (maxPrice) adsWhere.price.lte = parseFloat(maxPrice);
+      if (minPrice !== undefined) adsWhere.price.gte = minPrice;
+      if (maxPrice !== undefined) adsWhere.price.lte = maxPrice;
     }
 
     if (Object.keys(adsWhere).length > 0) {
