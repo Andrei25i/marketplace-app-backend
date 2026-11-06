@@ -8,11 +8,17 @@ import {
   clearAuthCookies,
   setAuthCookies,
 } from "../utils/authCookies";
-import { isUuid } from "../utils/isUuid";
 import { getClientIp } from "../utils/clientIp";
 import { disconnectSession, disconnectUser } from "../realtime/disconnect";
-
-const MIN_PASSWORD_LENGTH = 6;
+import { getValidated } from "../middlewares/validate.middleware";
+import type {
+  ChangePasswordInput,
+  ForgotPasswordInput,
+  LoginInput,
+  RegisterUserInput,
+  ResetPasswordInput,
+  SessionIdParams,
+} from "../types/auth.type";
 
 const clientInfo = (req: Request) => ({
   userAgent: req.get("user-agent"),
@@ -24,31 +30,10 @@ export class AuthController {
   private userService = new UserService();
 
   register = async (req: Request, res: Response) => {
-    const { first_name, last_name, email, phone_number, password, city } =
-      req.body;
-
-    if (
-      !first_name ||
-      !last_name ||
-      !email ||
-      !phone_number ||
-      !password ||
-      !city
-    ) {
-      return res
-        .status(400)
-        .json({ error: "Toate câmpurile marcate sunt obligatorii." });
-    }
+    const body = req.body as RegisterUserInput;
 
     try {
-      const user = await this.authService.registerUser({
-        first_name,
-        last_name,
-        email,
-        phone_number,
-        password,
-        city,
-      });
+      const user = await this.authService.registerUser(body);
 
       const tokens = await sessionService.createSession(
         user.id,
@@ -72,13 +57,7 @@ export class AuthController {
   };
 
   login = async (req: Request, res: Response) => {
-    const { email, password } = req.body;
-
-    if (!email || !password) {
-      return res
-        .status(400)
-        .json({ error: "Email-ul și parola sunt obligatorii." });
-    }
+    const { email, password } = req.body as LoginInput;
 
     try {
       const user = await this.authService.loginUser(email, password);
@@ -150,30 +129,7 @@ export class AuthController {
       return res.status(401).json({ error: "Neautorizat." });
     }
 
-    const { currentPassword, newPassword } = req.body ?? {};
-
-    if (
-      typeof currentPassword !== "string" ||
-      typeof newPassword !== "string" ||
-      !currentPassword ||
-      !newPassword
-    ) {
-      return res
-        .status(400)
-        .json({ error: "Parola actuală și parola nouă sunt obligatorii." });
-    }
-
-    if (newPassword.length < MIN_PASSWORD_LENGTH) {
-      return res.status(400).json({
-        error: `Parola nouă trebuie să aibă minim ${MIN_PASSWORD_LENGTH} caractere.`,
-      });
-    }
-
-    if (newPassword === currentPassword) {
-      return res
-        .status(400)
-        .json({ error: "Parola nouă trebuie să fie diferită de cea actuală." });
-    }
+    const { currentPassword, newPassword } = req.body as ChangePasswordInput;
 
     try {
       await this.authService.changePassword(
@@ -228,11 +184,7 @@ export class AuthController {
       return res.status(401).json({ error: "Neautorizat." });
     }
 
-    const { id } = req.params;
-
-    if (typeof id !== "string" || !isUuid(id)) {
-      return res.status(400).json({ error: "ID-ul sesiunii este invalid." });
-    }
+    const { id } = getValidated<SessionIdParams>(req, "params");
 
     try {
       const count = await sessionService.revokeForUser(auth.id, id);
@@ -273,13 +225,7 @@ export class AuthController {
   };
 
   forgotPassword = async (req: Request, res: Response) => {
-    const { email } = req.body;
-
-    if (!email) {
-      return res
-        .status(400)
-        .json({ error: "Adresa de email este obligatorie." });
-    }
+    const { email } = req.body as ForgotPasswordInput;
 
     try {
       await this.authService.forgotPassword(email);
@@ -295,22 +241,7 @@ export class AuthController {
   };
 
   resetPassword = async (req: Request, res: Response) => {
-    const { token, newPassword } = req.body;
-
-    if (!token || !newPassword) {
-      return res
-        .status(400)
-        .json({ error: "Token-ul și noua parolă sunt necesare." });
-    }
-
-    if (
-      typeof newPassword !== "string" ||
-      newPassword.length < MIN_PASSWORD_LENGTH
-    ) {
-      return res.status(400).json({
-        error: `Parola trebuie să aibă minim ${MIN_PASSWORD_LENGTH} caractere.`,
-      });
-    }
+    const { token, newPassword } = req.body as ResetPasswordInput;
 
     try {
       const userId = await this.authService.resetPassword(token, newPassword);
