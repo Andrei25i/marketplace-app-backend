@@ -3,7 +3,7 @@ import { UserService } from "../services/user.service";
 import { clearAuthCookies } from "../utils/authCookies";
 import { disconnectUser } from "../realtime/disconnect";
 import { ChatEvents } from "../realtime/chat.events";
-import { getValidated } from "../middlewares/validate.middleware";
+import { fieldError, getValidated } from "../middlewares/validate.middleware";
 import type {
   DeleteAccountInput,
   UpdateProfileDTO,
@@ -87,7 +87,12 @@ export class UserController {
       if (error instanceof Error && error.message === "INVALID_PASSWORD") {
         return res
           .status(400)
-          .json({ error: "Parola incorectă. Ștergerea contului a eșuat." });
+          .json(
+            fieldError(
+              "password",
+              "Parola incorectă. Ștergerea contului a eșuat.",
+            ),
+          );
       }
 
       console.error("Eroare la ștergerea contului:", error);
@@ -117,7 +122,12 @@ export class UserController {
       if (error instanceof Error && error.message === "EMAIL_IN_USE") {
         return res
           .status(409)
-          .json({ error: "Acest email este deja utilizat de un alt cont." });
+          .json(
+            fieldError(
+              "email",
+              "Acest email este deja utilizat de un alt cont.",
+            ),
+          );
       }
 
       console.error("Eroare la actualizarea profilului:", error);
