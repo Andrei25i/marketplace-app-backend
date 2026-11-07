@@ -10,7 +10,7 @@ import {
 } from "../utils/authCookies";
 import { getClientIp } from "../utils/clientIp";
 import { disconnectSession, disconnectUser } from "../realtime/disconnect";
-import { getValidated } from "../middlewares/validate.middleware";
+import { fieldError, getValidated } from "../middlewares/validate.middleware";
 import type {
   ChangePasswordInput,
   ForgotPasswordInput,
@@ -48,7 +48,7 @@ export class AuthController {
       if (error instanceof Error && error.message === "EMAIL_EXISTS") {
         return res
           .status(409)
-          .json({ error: "Acest email este deja înregistrat." });
+          .json(fieldError("email", "Acest email este deja înregistrat."));
       }
 
       console.error("Eroare la înregistrare:", error);
@@ -148,7 +148,9 @@ export class AuthController {
       if (error instanceof Error && error.message === "INVALID_PASSWORD") {
         return res
           .status(400)
-          .json({ error: "Parola actuală este incorectă." });
+          .json(
+            fieldError("currentPassword", "Parola actuală este incorectă."),
+          );
       }
 
       if (error instanceof Error && error.message === "USER_NOT_FOUND") {

@@ -54,6 +54,11 @@ export const validate =
     next();
   };
 
+export const fieldError = (field: string, message: string) => ({
+  error: message,
+  fields: { [field]: message },
+});
+
 export const getValidated = <T>(req: Request, part: RequestPart): T => {
   if (!req.validated || !(part in req.validated)) {
     throw new Error(
