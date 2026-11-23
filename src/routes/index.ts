@@ -6,6 +6,7 @@ import adsRouter from "./ads.routes";
 import favoritesRouter from "./favorites.routes";
 import userRouter from "./user.routes";
 import conversationsRouter from "./conversations.routes";
+import reviewsRouter from "./reviews.routes";
 
 const router = Router();
 
@@ -17,5 +18,6 @@ router.use("/categories", categoriesRouter);
 router.use("/auth", authRouter);
 router.use("/favorites", favoritesRouter);
 router.use("/conversations", conversationsRouter);
+router.use("/reviews", reviewsRouter);
 
 export default router;
