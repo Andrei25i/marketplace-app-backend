@@ -3,6 +3,7 @@ import bcryptjs from "bcryptjs";
 import { UpdateProfileDTO } from "../types/user.type";
 import { Prisma } from "@prisma/client";
 import { MediaService } from "./media.service";
+import { ratingStatsSelect, toRatingSummary } from "./reviews.mappers";
 
 export const privateUserSelect = {
   id: true,
@@ -37,12 +38,14 @@ export class UserService {
         first_name: true,
         last_name: true,
         created_at: true,
+        rating_stats: { select: ratingStatsSelect },
       },
     });
 
     if (!user) return null;
 
-    return user;
+    const { rating_stats, ...profile } = user;
+    return { ...profile, rating: toRatingSummary(rating_stats) };
   }
 
   async deleteAccount(userId: string, passwordPlain: string) {

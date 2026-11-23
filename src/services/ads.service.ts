@@ -8,6 +8,7 @@ import {
 } from "../types/ads.type";
 import { matchesText } from "../utils/normalizeText";
 import { MediaService } from "./media.service";
+import { ratingStatsSelect, toRatingSummary } from "./reviews.mappers";
 
 const getPublicIds = (images: unknown): string[] =>
   Array.isArray(images)
@@ -92,6 +93,7 @@ export class AdsService {
             first_name: true,
             last_name: true,
             email: true,
+            rating_stats: { select: ratingStatsSelect },
           },
         },
         categories: {
@@ -106,10 +108,11 @@ export class AdsService {
     if (!ad) return null;
 
     const { users, categories, category_id, user_id, ...adData } = ad;
+    const { rating_stats, ...seller } = users;
 
     return {
       ...adData,
-      user: users,
+      user: { ...seller, rating: toRatingSummary(rating_stats) },
       category: categories,
     };
   }
