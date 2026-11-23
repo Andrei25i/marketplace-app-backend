@@ -1,5 +1,10 @@
 import type { Prisma } from "@prisma/client";
-import type { ReviewCursor, ReviewSortOption } from "../types/reviews.type";
+import type { Paginated } from "../types/chat.type";
+import type {
+  ListReviewsQuery,
+  ReviewCursor,
+  ReviewSortOption,
+} from "../types/reviews.type";
 
 interface CursorPayload {
   r: number;
@@ -9,12 +14,9 @@ interface CursorPayload {
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+type CursorRow = { rating: number; created_at: Date; id: string };
 
-export const encodeReviewCursor = (row: {
-  rating: number;
-  created_at: Date;
-  id: string;
-}): string => {
+export const encodeReviewCursor = (row: CursorRow): string => {
   const payload: CursorPayload = {
     r: row.rating,
     t: row.created_at.toISOString(),
@@ -91,5 +93,29 @@ export const reviewKeysetWhere = (
       },
       { rating: cursor.rating, ...afterByDate },
     ],
+  };
+};
+
+export const reviewListWhere = (
+  base: Prisma.reviewsWhereInput,
+  { sort, rating, cursor }: ListReviewsQuery,
+): Prisma.reviewsWhereInput => {
+  const and: Prisma.reviewsWhereInput[] = [base];
+  if (rating !== undefined) and.push({ rating });
+  if (cursor) and.push(reviewKeysetWhere(sort, cursor));
+  return { AND: and };
+};
+
+export const paginateReviews = <Row extends CursorRow, DTO>(
+  rows: Row[],
+  limit: number,
+  toDTO: (row: Row) => DTO,
+): Paginated<DTO> => {
+  const hasMore = rows.length > limit;
+  const page = hasMore ? rows.slice(0, limit) : rows;
+  const last = page.at(-1);
+  return {
+    items: page.map(toDTO),
+    nextCursor: hasMore && last ? encodeReviewCursor(last) : null,
   };
 };
