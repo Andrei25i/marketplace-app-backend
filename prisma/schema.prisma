@@ -63,6 +63,9 @@ model users {
   messages                  messages[]
   message_attachments       message_attachments[]
   presence                  user_presence?
+  reviews_written           reviews[]                   @relation("ReviewsWritten")
+  reviews_received          reviews[]                   @relation("ReviewsReceived")
+  rating_stats              seller_rating_stats?
 }
 
 model sessions {
@@ -173,4 +176,40 @@ model message_attachments {
   @@index([message_id, position])
   @@index([conversation_id])
   @@index([uploader_id])
+}
+
+/// This table contains check constraints (rating BETWEEN 1 AND 5, reviewer_id <> seller_id)
+/// and triggers (trg_reviews_stats, trg_reviews_guard), added manually in the migration.
+model reviews {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  reviewer_id String   @db.Uuid
+  seller_id   String   @db.Uuid
+  rating      Int      @db.SmallInt
+  comment     String?  @db.VarChar(1000)
+  created_at  DateTime @default(now()) @db.Timestamptz(3)
+  updated_at  DateTime @default(now()) @updatedAt @db.Timestamptz(3)
+
+  reviewer users @relation("ReviewsWritten", fields: [reviewer_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_review_reviewer")
+  seller   users @relation("ReviewsReceived", fields: [seller_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_review_seller")
+
+  @@unique([reviewer_id, seller_id])
+  @@index([seller_id, created_at(sort: Desc), id(sort: Desc)])
+  @@index([seller_id, rating(sort: Desc), created_at(sort: Desc), id(sort: Desc)])
+  @@index([reviewer_id, created_at(sort: Desc), id(sort: Desc)])
+}
+
+/// Maintained EXCLUSIVELY by the trg_reviews_stats trigger. Never write to it from the app.
+/// This table contains check constraints (non-negative counters), added manually in the migration.
+model seller_rating_stats {
+  user_id      String  @id @db.Uuid
+  review_count Int     @default(0)
+  rating_sum   Int     @default(0)
+  rating_avg   Decimal @default(0) @db.Decimal(3, 2)
+  count_1      Int     @default(0)
+  count_2      Int     @default(0)
+  count_3      Int     @default(0)
+  count_4      Int     @default(0)
+  count_5      Int     @default(0)
+
+  users users @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_rating_stats_user")
 }
